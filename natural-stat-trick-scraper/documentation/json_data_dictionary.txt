@@ -1,0 +1,18 @@
+# URL params
+fromseason = 20202021
+thruseason = 20202021
+stype = 2 #preseason = 1 , regular season = 2, RTP exhibition = 3, playoffs = 4
+sit = '5v5' #All strengths = all, even strength = ev, 5v5 score and venue adjusted = sva, power play = pp, 5 on 4 pp = 5v4, penalty kill = pk, 4 on 5 pk = 4v5, with empty net = enf, against empty net = ena
+score = 'all' #All scores = all, tied = tied, leading = u, trailing = d, within 1 = w1, up 1 = u1, down 1 = d1
+stdoi = 'g' #on ice = oi, individual = std, goalies = g, bios = bio
+rate = 'n'# counts = n, rates = y, relative = r
+team = 'ALL' #for individual teams use 3 character team code ie: New York Islanders = NYI
+pos = 'S' #all skaters = S, forwards = F, center = C, right wing = R, left wing = L, defenseman = D, goalie = G
+loc = 'B' #Home = 'H' #Away = 'A'
+toi = 0 #minimum TOI filter
+gpfilt = 'none' #This is param is for game range. by date = gpdate; by games played = gpteam
+fd = '' #from date if gpfilt by date range (gpdate) 
+td = '' #to date if gpfilt by date range (gpdate) 
+tgp = 410   #last X team games played if gpfilt by games played (gpteam) 
+lines = 'single' # pass 'split' to split player data by team if theyve played for multiple teams in range
+draftteam = 'ALL' #pass 3 letter team acronym to specify player drafted by a given team

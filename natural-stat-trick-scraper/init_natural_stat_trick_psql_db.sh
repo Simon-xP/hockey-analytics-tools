@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Run all scrapers
+python scrape_natural_stat_trick.py 5v5_individual_counts
+python scrape_natural_stat_trick.py 5v5_individual_rates
+python scrape_natural_stat_trick.py 5v5_on-ice_counts
+python scrape_natural_stat_trick.py 5v5_on-ice_rates
+python scrape_natural_stat_trick.py pp_individual_counts
+python scrape_natural_stat_trick.py all_individual_counts
+python scrape_natural_stat_trick.py all_individual_rates
+python scrape_natural_stat_trick.py all_on-ice_counts
+python scrape_natural_stat_trick.py all_on-ice_rates
