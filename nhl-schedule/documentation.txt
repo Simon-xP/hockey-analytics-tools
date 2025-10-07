@@ -1,0 +1,8 @@
+Useful functions:
+1. input week, get best schedules
+- needs some metric of how good a schedule is
+- display different amount of teams depending on their scores being above some threshold compared to average
+    - games + off nights
+- default to current week
+
+2. input all players, position slots, get list of days + positions that are available
