@@ -1,13 +1,16 @@
-import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 import json
 import sys
+from pathlib import Path
 from sqlalchemy import create_engine
-# This script scrapes 5v5 stats from Natural Stat Trick for NHL seasons specified in the passed config json file.
+
+# This script scrapes stats from Natural Stat Trick for NHL seasons specified in the config json file.
+
+CONFIG_PATH = Path(__file__).parent / "config.json"
+
 
 def scrape(situation_name):
-    with open(f"config_files/natural_stat_trick_config.json", "r") as f:
+    with open(CONFIG_PATH, "r") as f:
         params = json.load(f)
         
     situation_dict = params[situation_name]
