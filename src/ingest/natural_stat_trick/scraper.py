@@ -267,17 +267,12 @@ def scrape_season_stats(situation: str, seasons: list[int], delay: float = REQUE
 
 
 # =============================================================================
-# GAME LOGS (TODO: implement when we add GameLog model)
+# LAST N GAMES (rolling stats)
 # =============================================================================
 
-def scrape_game_logs(season: int, delay: float = REQUEST_DELAY) -> dict:
-    """
-    Scrape game logs for current season.
-
-    TODO: Implement when GameLog model is ready.
-    NST game logs use a different endpoint structure.
-    """
-    raise NotImplementedError("Game logs scraping not yet implemented")
+# L5 situations are defined in config.json with gpfilt=gpteam and tgp=5
+# They use the same endpoint as season stats, just with different parameters.
+# The scrape_current() function handles these automatically.
 
 
 # =============================================================================
@@ -315,43 +310,54 @@ def scrape_historical(situations: list[str] = None, delay: float = REQUEST_DELAY
     return results
 
 
-def scrape_current(situations: list[str] = None, include_game_logs: bool = True, delay: float = REQUEST_DELAY) -> dict:
+def scrape_current(delay: float = REQUEST_DELAY) -> dict:
     """
-    Scrape current season data (season stats + game logs).
+    Scrape current season data (season stats + last 5 games rolling stats).
 
     Args:
-        situations: List of situations to scrape, or None for all
-        include_game_logs: Whether to also scrape game logs
         delay: Seconds between requests
     """
-    with open(CONFIG_PATH, "r") as f:
-        config = json.load(f)
+    # Individual stats situations (season-long)
+    season_situations = [
+        "5v5_individual_counts",
+        "5v5_individual_rates",
+        "all_individual_counts",
+        "all_individual_rates",
+        "pp_individual_counts",
+    ]
 
-    if situations is None:
-        situations = list(config.keys())
+    # Last 5 games rolling stats
+    l5_situations = [
+        "5v5_individual_counts_L5",
+        "5v5_individual_rates_L5",
+        "all_individual_counts_L5",
+        "all_individual_rates_L5",
+        "pp_individual_counts_L5",
+    ]
 
     print(f"Scraping CURRENT SEASON ({CURRENT_SEASON}-{CURRENT_SEASON + 1})")
     print()
 
-    results = {"season_stats": {}, "game_logs": None}
+    results = {"season_stats": {}, "last_5_games": {}}
 
     # Season stats
     print("=== Season Stats ===")
-    for i, situation in enumerate(situations):
-        print(f"[{i + 1}/{len(situations)}] {situation}")
+    for i, situation in enumerate(season_situations):
+        print(f"[{i + 1}/{len(season_situations)}] {situation}")
         results["season_stats"][situation] = scrape_season_stats(situation, [CURRENT_SEASON], delay)
 
-        if i < len(situations) - 1:
+        if i < len(season_situations) - 1:
             time.sleep(delay)
 
-    # Game logs
-    if include_game_logs:
-        print()
-        print("=== Game Logs ===")
-        try:
-            results["game_logs"] = scrape_game_logs(CURRENT_SEASON, delay)
-        except NotImplementedError:
-            print("  (not yet implemented)")
+    # Last 5 games
+    print()
+    print("=== Last 5 Games ===")
+    for i, situation in enumerate(l5_situations):
+        print(f"[{i + 1}/{len(l5_situations)}] {situation}")
+        results["last_5_games"][situation] = scrape_season_stats(situation, [CURRENT_SEASON], delay)
+
+        if i < len(l5_situations) - 1:
+            time.sleep(delay)
 
     return results
 

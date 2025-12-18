@@ -21,9 +21,9 @@ Prioritized development tasks. Natural Stat Trick work is prioritized where depe
   - Improved resolver: team fallback, 80% fuzzy threshold
   - 17,422 records across 6 seasons (2019-2025), 99.9% resolution rate
 
-- [ ] **Add game logs scraping to NST**
-  - Per-player game logs (different endpoint)
-  - Set up for nightly batch updates
+- [x] **Add rolling stats (last 5 games) to NST**
+  - Replaced game logs with simpler L5 rolling stats
+  - Uses same endpoint with gpfilt=gpteam and tgp=5
 
 - [ ] **Add on-ice stats model** (optional)
   - CF/CA, FF/FA, xGF/xGA, zone starts, etc.
