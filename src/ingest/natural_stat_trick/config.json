@@ -263,5 +263,39 @@
         "tgp": 5,
         "lines": "single",
         "draftteam": "ALL"
+    },
+    "5v5_on-ice_counts_L5": {
+        "stype": 2,
+        "sit": "5v5",
+        "score": "all",
+        "stdoi": "oi",
+        "rate": "n",
+        "team": "ALL",
+        "pos": "S",
+        "loc": "B",
+        "toi": 0,
+        "gpfilt": "gpteam",
+        "fd": "",
+        "td": "",
+        "tgp": 5,
+        "lines": "single",
+        "draftteam": "ALL"
+    },
+    "all_on-ice_counts_L5": {
+        "stype": 2,
+        "sit": "all",
+        "score": "all",
+        "stdoi": "oi",
+        "rate": "n",
+        "team": "ALL",
+        "pos": "S",
+        "loc": "B",
+        "toi": 0,
+        "gpfilt": "gpteam",
+        "fd": "",
+        "td": "",
+        "tgp": 5,
+        "lines": "single",
+        "draftteam": "ALL"
     }
 }

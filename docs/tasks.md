@@ -25,13 +25,10 @@ Prioritized development tasks. Natural Stat Trick work is prioritized where depe
   - Replaced game logs with simpler L5 rolling stats
   - Uses same endpoint with gpfilt=gpteam and tgp=5
 
-- [ ] **Add on-ice stats model** (optional)
-  - CF/CA, FF/FA, xGF/xGA, zone starts, etc.
-  - Separate from individual stats
-
-- [ ] **Add derived stats from NST**
-  - Season aggregations
-  - Rolling stats (last 5 games, etc.)
+- [x] **Add on-ice stats model**
+  - CF/CA, FF/FA, xGF/xGA, zone starts, PDO, etc.
+  - Separate OnIceStats table
+  - 4,602 records (season + L5 for 5v5 and all situations)
 
 ## Phase 3: Other Data Sources
 

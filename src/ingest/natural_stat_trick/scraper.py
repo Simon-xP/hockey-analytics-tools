@@ -24,7 +24,7 @@ from io import StringIO
 from pathlib import Path
 
 from src.core.db import get_session
-from src.core.models import SeasonStats
+from src.core.models import SeasonStats, OnIceStats
 from src.core.resolver import resolve_player
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -217,6 +217,184 @@ def save_season_stats(records: list[dict]) -> int:
     return new_count
 
 
+# =============================================================================
+# ON-ICE STATS
+# =============================================================================
+
+def map_on_ice_stats_to_records(df: pd.DataFrame, season: str, situation: str) -> tuple[list[dict], list[tuple]]:
+    """
+    Convert DataFrame to OnIceStats records.
+
+    Returns (records, unresolved) where unresolved is list of (name, team) tuples.
+    """
+    records = []
+    unresolved = []
+
+    with get_session() as session:
+        for _, row in df.iterrows():
+            player_name = row.get("Player")
+            team_abbrev = row.get("Team")
+
+            if not player_name:
+                continue
+
+            nhl_id = resolve_player_with_alias(session, player_name, team_abbrev)
+
+            if not nhl_id:
+                unresolved.append((player_name, team_abbrev))
+                continue
+
+            record = {
+                "nhl_id": nhl_id,
+                "season": season,
+                "situation": situation,
+                "team_abbrev": team_abbrev,
+                "position": row.get("Position"),
+                "games_played": safe_int(row.get("GP")),
+                "toi": safe_float(row.get("TOI")),
+                # Corsi
+                "cf": safe_int(row.get("CF")),
+                "ca": safe_int(row.get("CA")),
+                "cf_pct": safe_float(row.get("CF%")),
+                # Fenwick
+                "ff": safe_int(row.get("FF")),
+                "fa": safe_int(row.get("FA")),
+                "ff_pct": safe_float(row.get("FF%")),
+                # Shots
+                "sf": safe_int(row.get("SF")),
+                "sa": safe_int(row.get("SA")),
+                "sf_pct": safe_float(row.get("SF%")),
+                # Goals
+                "gf": safe_int(row.get("GF")),
+                "ga": safe_int(row.get("GA")),
+                "gf_pct": safe_float(row.get("GF%")),
+                # Expected goals
+                "xgf": safe_float(row.get("xGF")),
+                "xga": safe_float(row.get("xGA")),
+                "xgf_pct": safe_float(row.get("xGF%")),
+                # Scoring chances
+                "scf": safe_int(row.get("SCF")),
+                "sca": safe_int(row.get("SCA")),
+                "scf_pct": safe_float(row.get("SCF%")),
+                # High danger
+                "hdcf": safe_int(row.get("HDCF")),
+                "hdca": safe_int(row.get("HDCA")),
+                "hdcf_pct": safe_float(row.get("HDCF%")),
+                "hdgf": safe_int(row.get("HDGF")),
+                "hdga": safe_int(row.get("HDGA")),
+                "hdgf_pct": safe_float(row.get("HDGF%")),
+                # Medium danger
+                "mdcf": safe_int(row.get("MDCF")),
+                "mdca": safe_int(row.get("MDCA")),
+                "mdcf_pct": safe_float(row.get("MDCF%")),
+                "mdgf": safe_int(row.get("MDGF")),
+                "mdga": safe_int(row.get("MDGA")),
+                "mdgf_pct": safe_float(row.get("MDGF%")),
+                # Low danger
+                "ldcf": safe_int(row.get("LDCF")),
+                "ldca": safe_int(row.get("LDCA")),
+                "ldcf_pct": safe_float(row.get("LDCF%")),
+                "ldgf": safe_int(row.get("LDGF")),
+                "ldga": safe_int(row.get("LDGA")),
+                "ldgf_pct": safe_float(row.get("LDGF%")),
+                # On-ice percentages
+                "on_ice_sh_pct": safe_float(row.get("On-Ice SH%")),
+                "on_ice_sv_pct": safe_float(row.get("On-Ice SV%")),
+                "pdo": safe_float(row.get("PDO")),
+                # Zone starts
+                "off_zone_starts": safe_int(row.get("Off. Zone Starts")),
+                "neu_zone_starts": safe_int(row.get("Neu. Zone Starts")),
+                "def_zone_starts": safe_int(row.get("Def. Zone Starts")),
+                "on_the_fly_starts": safe_int(row.get("On The Fly Starts")),
+                "off_zone_start_pct": safe_float(row.get("Off. Zone Start %")),
+                # Zone faceoffs
+                "off_zone_faceoffs": safe_int(row.get("Off. Zone Faceoffs")),
+                "neu_zone_faceoffs": safe_int(row.get("Neu. Zone Faceoffs")),
+                "def_zone_faceoffs": safe_int(row.get("Def. Zone Faceoffs")),
+                "off_zone_faceoff_pct": safe_float(row.get("Off. Zone Faceoff %")),
+            }
+            records.append(record)
+
+    return records, unresolved
+
+
+def save_on_ice_stats(records: list[dict]) -> int:
+    """Save on-ice stats to database (upsert). Returns count of new records."""
+    if not records:
+        return 0
+
+    new_count = 0
+    with get_session() as session:
+        for record in records:
+            existing = session.query(OnIceStats).filter(
+                OnIceStats.nhl_id == record["nhl_id"],
+                OnIceStats.season == record["season"],
+                OnIceStats.situation == record["situation"]
+            ).first()
+
+            if existing:
+                for key, value in record.items():
+                    setattr(existing, key, value)
+            else:
+                session.add(OnIceStats(**record))
+                new_count += 1
+
+    return new_count
+
+
+def scrape_on_ice_stats(situation: str, seasons: list[int], delay: float = REQUEST_DELAY) -> dict:
+    """
+    Scrape on-ice stats for a situation across multiple seasons.
+
+    Args:
+        situation: Situation name from config (e.g., "5v5_on-ice_counts")
+        seasons: List of season start years
+        delay: Seconds between requests
+
+    Returns:
+        Dict with results summary
+    """
+    with open(CONFIG_PATH, "r") as f:
+        config = json.load(f)
+
+    if situation not in config:
+        raise ValueError(f"Unknown situation: {situation}")
+
+    situation_config = config[situation]
+    total_records = 0
+    total_new = 0
+    total_unresolved = 0
+
+    for i, year in enumerate(seasons):
+        season_str = f"{year}{year + 1}"
+        print(f"  [{i + 1}/{len(seasons)}] Fetching {situation} for {season_str}...")
+
+        df = fetch_season_stats(situation_config, season_str)
+        records, unresolved = map_on_ice_stats_to_records(df, season_str, situation)
+        new_count = save_on_ice_stats(records)
+
+        total_records += len(records)
+        total_new += new_count
+        total_unresolved += len(unresolved)
+
+        print(f"       {len(records)} resolved, {len(unresolved)} unresolved, {new_count} new")
+
+        if i < len(seasons) - 1:
+            time.sleep(delay)
+
+    return {
+        "situation": situation,
+        "seasons": len(seasons),
+        "records": total_records,
+        "new": total_new,
+        "unresolved": total_unresolved
+    }
+
+
+# =============================================================================
+# SCRAPE SEASON STATS (individual)
+# =============================================================================
+
 def scrape_season_stats(situation: str, seasons: list[int], delay: float = REQUEST_DELAY) -> dict:
     """
     Scrape season stats for a situation across multiple seasons.
@@ -312,13 +490,13 @@ def scrape_historical(situations: list[str] = None, delay: float = REQUEST_DELAY
 
 def scrape_current(delay: float = REQUEST_DELAY) -> dict:
     """
-    Scrape current season data (season stats + last 5 games rolling stats).
+    Scrape current season data (individual + on-ice, season + L5).
 
     Args:
         delay: Seconds between requests
     """
-    # Individual stats situations (season-long)
-    season_situations = [
+    # Individual stats (season-long)
+    individual_season = [
         "5v5_individual_counts",
         "5v5_individual_rates",
         "all_individual_counts",
@@ -326,8 +504,8 @@ def scrape_current(delay: float = REQUEST_DELAY) -> dict:
         "pp_individual_counts",
     ]
 
-    # Last 5 games rolling stats
-    l5_situations = [
+    # Individual stats (last 5 games)
+    individual_l5 = [
         "5v5_individual_counts_L5",
         "5v5_individual_rates_L5",
         "all_individual_counts_L5",
@@ -335,28 +513,63 @@ def scrape_current(delay: float = REQUEST_DELAY) -> dict:
         "pp_individual_counts_L5",
     ]
 
+    # On-ice stats (season-long)
+    on_ice_season = [
+        "5v5_on-ice_counts",
+        "5v5_on-ice_rates",
+        "all_on-ice_counts",
+        "all_on-ice_rates",
+    ]
+
+    # On-ice stats (last 5 games)
+    on_ice_l5 = [
+        "5v5_on-ice_counts_L5",
+        "all_on-ice_counts_L5",
+    ]
+
     print(f"Scraping CURRENT SEASON ({CURRENT_SEASON}-{CURRENT_SEASON + 1})")
     print()
 
-    results = {"season_stats": {}, "last_5_games": {}}
+    results = {
+        "individual_season": {},
+        "individual_l5": {},
+        "on_ice_season": {},
+        "on_ice_l5": {},
+    }
 
-    # Season stats
-    print("=== Season Stats ===")
-    for i, situation in enumerate(season_situations):
-        print(f"[{i + 1}/{len(season_situations)}] {situation}")
-        results["season_stats"][situation] = scrape_season_stats(situation, [CURRENT_SEASON], delay)
-
-        if i < len(season_situations) - 1:
+    # Individual season stats
+    print("=== Individual Stats (Season) ===")
+    for i, situation in enumerate(individual_season):
+        print(f"[{i + 1}/{len(individual_season)}] {situation}")
+        results["individual_season"][situation] = scrape_season_stats(situation, [CURRENT_SEASON], delay)
+        if i < len(individual_season) - 1:
             time.sleep(delay)
 
-    # Last 5 games
+    # Individual L5 stats
     print()
-    print("=== Last 5 Games ===")
-    for i, situation in enumerate(l5_situations):
-        print(f"[{i + 1}/{len(l5_situations)}] {situation}")
-        results["last_5_games"][situation] = scrape_season_stats(situation, [CURRENT_SEASON], delay)
+    print("=== Individual Stats (Last 5 Games) ===")
+    for i, situation in enumerate(individual_l5):
+        print(f"[{i + 1}/{len(individual_l5)}] {situation}")
+        results["individual_l5"][situation] = scrape_season_stats(situation, [CURRENT_SEASON], delay)
+        if i < len(individual_l5) - 1:
+            time.sleep(delay)
 
-        if i < len(l5_situations) - 1:
+    # On-ice season stats
+    print()
+    print("=== On-Ice Stats (Season) ===")
+    for i, situation in enumerate(on_ice_season):
+        print(f"[{i + 1}/{len(on_ice_season)}] {situation}")
+        results["on_ice_season"][situation] = scrape_on_ice_stats(situation, [CURRENT_SEASON], delay)
+        if i < len(on_ice_season) - 1:
+            time.sleep(delay)
+
+    # On-ice L5 stats
+    print()
+    print("=== On-Ice Stats (Last 5 Games) ===")
+    for i, situation in enumerate(on_ice_l5):
+        print(f"[{i + 1}/{len(on_ice_l5)}] {situation}")
+        results["on_ice_l5"][situation] = scrape_on_ice_stats(situation, [CURRENT_SEASON], delay)
+        if i < len(on_ice_l5) - 1:
             time.sleep(delay)
 
     return results
