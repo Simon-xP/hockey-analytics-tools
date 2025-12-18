@@ -6,7 +6,7 @@ A sequential log of development decisions, what was built, and why.
 
 ## Entry 1: Project Assessment and Planning
 
-**Date:** 2024-12-01
+**Date:** 2025-12-01
 
 ### Starting Point
 
@@ -38,7 +38,7 @@ This becomes the foundation everything else builds on.
 
 ## Entry 2: Architecture Design
 
-**Date:** 2024-12-16
+**Date:** 2025-12-01
 
 ### Options Considered
 
@@ -68,7 +68,7 @@ Plus supporting directories: `config/`, `data/`, `docs/`, `scripts/`, `tests/`, 
 
 ## Entry 3: Core Layer Implementation
 
-**Date:** 2024-12-16
+**Date:** 2025-12-16
 
 ### Database Models Created
 
@@ -122,7 +122,7 @@ Three-file structure:
 
 ## Entry 4: Migration of Existing Code
 
-**Date:** 2024-12-16
+**Date:** 2025-12-16
 
 ### Files Moved
 
@@ -144,7 +144,7 @@ Three-file structure:
 
 ## Entry 5: Package Configuration
 
-**Date:** 2024-12-16
+**Date:** 2025-12-16
 
 ### pyproject.toml Created
 
@@ -167,13 +167,61 @@ Modern Python packaging using `pyproject.toml`:
 
 ---
 
+## Entry 6: NHL API Client and Database Seeding
+
+**Date:** 2025-12-17
+
+### Database Setup
+
+- Created `hockey` PostgreSQL database
+- Initialized tables via `init_db()` (teams, players, player_aliases, games, goalie_starts)
+- Set up virtual environment (`hockey-venv`) with all dependencies
+
+### NHL API Client Built
+
+**`src/ingest/nhl_api/`**
+
+| File | Purpose |
+|------|---------|
+| `client.py` | Functions to fetch from NHL's public APIs |
+| `seed.py` | Populates database with teams and players |
+
+**API endpoints used:**
+- `api-web.nhle.com/v1/standings/now` - Get current teams
+- `api-web.nhle.com/v1/roster/{team}/current` - Get team rosters
+- `api.nhle.com/stats/rest/en/team` - Get team IDs
+
+**Rate limiting:** Added 0.5s delay between requests to avoid 429 errors.
+
+### Data Seeded
+
+- **32 teams** - All current NHL teams with IDs, abbreviations, names
+- **817 players** - All active roster players with NHL IDs, positions, team links
+
+### Resolver Tested
+
+```python
+resolve_player(session, name="Nathan MacKinnon")      # → 8477492
+resolve_player(session, name="Nate MacKinnon")        # → 8477492 (fuzzy)
+resolve_player(session, name="Sebastian Aho", team_abbrev="CAR")  # → 8478427
+```
+
+### Schema Pattern
+
+Using a snowflake schema approach:
+- **Dimension tables:** `players`, `teams`, `games` (descriptive data)
+- **Fact tables:** `goalie_starts`, future `game_logs` (measurable events)
+
+Players table acts as the central dimension that all stats data joins to.
+
+---
+
 ## Next Steps
 
-- [ ] Create PostgreSQL database (`createdb hockey`)
-- [ ] Build NHL API client to seed players and teams
-- [ ] Run `init_db()` to create tables
-- [ ] Test resolver with sample data from Natural Stat Trick
-- [ ] Backfill aliases from existing NST data
+- [ ] Integrate NST scraper with player resolver
+- [ ] Add game logs scraping to NST
+- [ ] Daily Faceoff scraper for goalie starts
+- [ ] Schedule data integration
 
 ---
 
