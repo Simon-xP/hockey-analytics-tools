@@ -13,7 +13,7 @@ def get_standings() -> dict:
     return response.json()
 
 
-def get_team_roster(team_abbrev: str, season: str = "20242025") -> dict:
+def get_team_roster(team_abbrev: str, season: str = "20252026") -> dict:
     """
     Fetch roster for a team.
 
@@ -84,7 +84,7 @@ def get_all_players() -> list[dict]:
     return players
 
 
-def get_skaters_with_games(season: str = "20242025") -> list[dict]:
+def get_skaters_with_games(season: str = "20252026") -> list[dict]:
     """
     Fetch all skaters who have played at least one game in the season.
 

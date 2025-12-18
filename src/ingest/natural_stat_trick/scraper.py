@@ -34,8 +34,8 @@ BASE_URL = "http://www.naturalstattrick.com/playerteams.php"
 REQUEST_DELAY = 10  # seconds between requests
 
 # Season definitions
-HISTORICAL_SEASONS = list(range(2019, 2024))  # 2019-20 through 2023-24
-CURRENT_SEASON = 2024  # 2024-25
+HISTORICAL_SEASONS = list(range(2019, 2025))  # 2019-20 through 2024-25
+CURRENT_SEASON = 2025  # 2025-26
 
 # NST uses different team abbreviations than NHL API
 NST_TEAM_MAP = {

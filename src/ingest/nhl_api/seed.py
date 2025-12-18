@@ -77,7 +77,7 @@ def seed_players() -> int:
     return count
 
 
-def seed_players_from_stats(season: str = "20242025") -> int:
+def seed_players_from_stats(season: str = "20252026") -> int:
     """
     Seed players who played games but aren't on current rosters.
 
