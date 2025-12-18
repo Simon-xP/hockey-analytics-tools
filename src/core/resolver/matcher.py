@@ -7,7 +7,8 @@ from src.core.resolver.normalize import normalize_name
 
 
 # Minimum similarity score to consider a fuzzy match (0-100)
-FUZZY_THRESHOLD = 85
+# 80% catches common variations: Zack/Zachary, Max/Maxwell, Alex/Alexander
+FUZZY_THRESHOLD = 80
 
 
 def exact_match_by_id(session: Session, nhl_id: int) -> Optional[Player]:

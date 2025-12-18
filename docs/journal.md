@@ -216,10 +216,47 @@ Players table acts as the central dimension that all stats data joins to.
 
 ---
 
+## Entry 7: Natural Stat Trick Integration
+
+**Date:** 2025-12-18
+
+### Season Stats Scraper
+
+Integrated NST scraper with player resolution:
+
+**Scraper Updates:**
+- Refactored scraper with clear sections: shared utilities, season stats, game logs (TODO), entry points
+- Two modes: `--historical` (2019-2024) and `--current` (2024-2025)
+- 10-second delay between requests to avoid rate limiting
+- NST team abbreviation mapping (S.J → SJS, L.A → LAK, etc.)
+
+**Player Resolution Improvements:**
+- NHL API `/roster/{team}/current` only returns active roster (misses IR players)
+- Added `/roster/{team}/{season}` endpoint for full season roster
+- Added `get_skaters_with_games()` to catch AHL callups who played NHL games
+- Lowered fuzzy threshold from 85% → 80% (catches Zack/Zachary, Max/Maxwell, Alex/Alexander)
+- Added team fallback: tries fuzzy match with team filter, then without (handles trades)
+
+**Results:**
+- 1,092 players in database (rosters + stats API)
+- 17,422 season stat records across 6 seasons (2019-2025)
+- 99.9% resolution rate (919/920 current season players)
+- Only 1 unresolved: Pierre-Olivier Joseph (NST: "Pierre-Olivier" vs DB: "P.O")
+
+**Individual Stats Situations Scraped:**
+1. 5v5_individual_counts
+2. 5v5_individual_rates
+3. all_individual_counts
+4. all_individual_rates
+5. pp_individual_counts
+
+On-ice stats (CF, CA, xGF, xGA, etc.) skipped for now - different columns, would need separate model.
+
+---
+
 ## Next Steps
 
-- [ ] Integrate NST scraper with player resolver
-- [ ] Add game logs scraping to NST
+- [ ] Add game logs scraping to NST (different endpoint)
 - [ ] Daily Faceoff scraper for goalie starts
 - [ ] Schedule data integration
 

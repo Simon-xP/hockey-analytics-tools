@@ -13,9 +13,13 @@ def get_standings() -> dict:
     return response.json()
 
 
-def get_team_roster(team_abbrev: str) -> dict:
-    """Fetch current roster for a team."""
-    response = requests.get(f"{BASE_URL}/roster/{team_abbrev}/current")
+def get_team_roster(team_abbrev: str, season: str = "20242025") -> dict:
+    """
+    Fetch roster for a team.
+
+    Uses season roster endpoint to include IR/LTIR players, not just active roster.
+    """
+    response = requests.get(f"{BASE_URL}/roster/{team_abbrev}/{season}")
     response.raise_for_status()
     return response.json()
 
@@ -76,5 +80,38 @@ def get_all_players() -> list[dict]:
                     "team_abbrev": abbrev,
                     "position": player["positionCode"],
                 })
+
+    return players
+
+
+def get_skaters_with_games(season: str = "20242025") -> list[dict]:
+    """
+    Fetch all skaters who have played at least one game in the season.
+
+    This catches players not on current rosters (AHL callups, etc.).
+    Returns list of dicts with: nhl_id, full_name, team_abbrev, position
+    """
+    url = f"{STATS_URL}/skater/summary?cayenneExp=seasonId={season}%20and%20gameTypeId=2&limit=-1"
+    response = requests.get(url)
+    response.raise_for_status()
+    data = response.json()
+
+    players = []
+    for p in data.get("data", []):
+        # Map position codes
+        pos_code = p.get("positionCode", "")
+        if pos_code in ("L", "R", "C"):
+            position = pos_code
+        elif pos_code == "D":
+            position = "D"
+        else:
+            position = "F"
+
+        players.append({
+            "nhl_id": p.get("playerId"),
+            "full_name": p.get("skaterFullName"),
+            "team_abbrev": p.get("teamAbbrevs"),  # Can be comma-separated
+            "position": position,
+        })
 
     return players

@@ -15,14 +15,19 @@ Prioritized development tasks. Natural Stat Trick work is prioritized where depe
 
 ## Phase 2: Natural Stat Trick
 
-- [ ] **Integrate NST scraper with player resolver**
+- [x] **Integrate NST scraper with player resolver**
   - Update scraper to resolve player names before storing
-  - Store in main `hockey` database instead of separate `naturalstattrick` db
-  - Build alias table from NST name variants
+  - Store in main `hockey` database
+  - Improved resolver: team fallback, 80% fuzzy threshold
+  - 17,422 records across 6 seasons (2019-2025), 99.9% resolution rate
 
 - [ ] **Add game logs scraping to NST**
-  - Per-player game logs
+  - Per-player game logs (different endpoint)
   - Set up for nightly batch updates
+
+- [ ] **Add on-ice stats model** (optional)
+  - CF/CA, FF/FA, xGF/xGA, zone starts, etc.
+  - Separate from individual stats
 
 - [ ] **Add derived stats from NST**
   - Season aggregations

@@ -75,7 +75,13 @@ def resolve_player(
         return player.nhl_id
 
     # Fall back to fuzzy matching
+    # Try with team filter first (most precise)
     result = fuzzy_match(session, name, team_abbrev, position)
+
+    # If no result with team filter, try without (handles trades, etc.)
+    if not result and team_abbrev:
+        result = fuzzy_match(session, name, None, position)
+
     if result:
         player, score = result
 
