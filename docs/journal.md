@@ -254,11 +254,48 @@ On-ice stats (CF, CA, xGF, xGA, etc.) skipped for now - different columns, would
 
 ---
 
-## Next Steps
+## Entry 8: Fantasy Schedule Optimizer Project
 
-- [ ] Add game logs scraping to NST (different endpoint)
-- [ ] Daily Faceoff scraper for goalie starts
-- [ ] Schedule data integration
+**Date:** 2025-12-18
+
+### New Goal
+
+Building a fantasy hockey schedule optimizer for Yahoo Fantasy (points-based, daily lineups). Two main components:
+
+1. **Schedule & Roster Flexibility** - Which days have open slots, which positions can be streamed
+2. **Fantasy Point Predictions** - Project player output for streaming decisions
+
+### The Core Problem
+
+In daily lineup leagues, you need to maximize games played. But roster construction is constrained by:
+- Position slots (2C, 2LW, 2RW, 4D, 2G, 2UTIL)
+- Multi-position eligibility (C/LW, LW/RW players)
+- Team schedules (some days have more games)
+
+The challenge: given your roster and league settings, identify which days have flexibility to stream additional players, and at which positions.
+
+### Technical Approach
+
+Multi-position eligibility creates an **assignment problem**. A player eligible for C/LW affects both position pools. Plan to use bipartite matching to optimally assign players to slots, then identify remaining capacity.
+
+### Data Already Available
+
+- NHL schedule CSV with dates, teams, opponents, Yahoo week numbers
+- Player database with NHL IDs, teams, positions
+- NST stats for projection work later
+
+### What's Missing
+
+- Roster input system (player + Yahoo positional eligibility)
+- League settings configuration
+- Schedule loaded into database for queries
+- The slot availability algorithm itself
+
+### Decision: Start with Schedule
+
+Focusing on Part 1 (schedule flexibility) before Part 2 (point predictions). The prediction algorithm needs more research on which factors matter most.
+
+See [docs/schedule-optimizer.md](schedule-optimizer.md) for full requirements.
 
 ---
 

@@ -1,40 +1,72 @@
 # Task List
 
-Prioritized development tasks. Natural Stat Trick work is prioritized where dependencies allow.
+Prioritized development tasks.
 
-## Phase 1: Foundation (required for everything) ✓
+## Completed
 
-- [x] **Create `hockey` database and initialize tables**
-  - Quick setup step
-  - Needed before anything can be stored
+### Phase 1: Foundation ✓
 
-- [x] **Build NHL API client to seed players/teams**
-  - Populates the `players` and `teams` tables
-  - Required for name resolution to work
-  - NST data needs this to map names → NHL IDs
+- [x] Create `hockey` database and initialize tables
+- [x] Build NHL API client to seed players/teams (32 teams, 817+ players)
 
-## Phase 2: Natural Stat Trick
+### Phase 2: Natural Stat Trick ✓
 
-- [x] **Integrate NST scraper with player resolver**
-  - Update scraper to resolve player names before storing
-  - Store in main `hockey` database
-  - Improved resolver: team fallback, 80% fuzzy threshold
-  - 17,422 records across 6 seasons (2019-2025), 99.9% resolution rate
+- [x] Integrate NST scraper with player resolver (17,422 records, 99.9% resolution)
+- [x] Add rolling stats (L5 games)
+- [x] Add on-ice stats model (CF/CA, FF/FA, xGF/xGA, etc.)
 
-- [x] **Add rolling stats (last 5 games) to NST**
-  - Replaced game logs with simpler L5 rolling stats
-  - Uses same endpoint with gpfilt=gpteam and tgp=5
+---
 
-- [x] **Add on-ice stats model**
-  - CF/CA, FF/FA, xGF/xGA, zone starts, PDO, etc.
-  - Separate OnIceStats table
-  - 4,602 records (season + L5 for 5v5 and all situations)
+## Current Focus: Fantasy Schedule Optimizer
 
-## Phase 3: Other Data Sources
+See [docs/schedule-optimizer.md](schedule-optimizer.md) for detailed requirements.
 
-- [ ] **Daily Faceoff scraper for goalie starts**
-- [ ] **Schedule data integration** (load CSV into `games` table)
+### Part 1: Schedule & Roster Flexibility
 
-## Phase 4: Tools
+- [ ] **Load schedule into database**
+  - Parse `data/raw/nhl-schedule-raw.csv` into `games` table
+  - Index by date and team for fast lookups
 
-- [ ] **Implement schedule optimizer functions** (the stubs in `src/tools/schedule/`)
+- [ ] **Define roster/league settings schema**
+  - League settings: slots per position (C, LW, RW, D, G, UTIL)
+  - Roster: list of players with their positional eligibility
+  - Support multi-position eligibility (C/LW, LW/RW, etc.)
+
+- [ ] **Build roster input system**
+  - Input current roster (player names/IDs + positions)
+  - Allow swaps for add/drop transactions
+  - Persist roster config (JSON or DB)
+
+- [ ] **Implement slot availability algorithm**
+  - For each day: determine which players are playing
+  - Calculate used vs available slots per position
+  - Handle UTIL slot (any F or D)
+  - Handle multi-position eligibility optimally
+
+- [ ] **Build daily flexibility report**
+  - Output: which positions have open slots per day
+  - Identify "tight" days (near capacity) vs "flexible" days
+  - Suggest which positions to stream
+
+### Part 2: Fantasy Point Predictions
+
+- [ ] **Define fantasy scoring system**
+  - Map stats to point values (G, A, +/-, SOG, PPP, etc.)
+  - Support custom league scoring
+
+- [ ] **Build player projection model**
+  - Inputs: season stats, L5 rolling stats, on-ice metrics
+  - Consider opponent quality (goals against, save %)
+  - Consider goalie matchup if available
+
+- [ ] **Weekly/daily projection output**
+  - Projected points per player per game
+  - Aggregate weekly projections
+
+---
+
+## Backlog
+
+- [ ] Daily Faceoff scraper for goalie starts
+- [ ] Yahoo Fantasy API integration (roster sync)
+- [ ] Streaming recommendations engine

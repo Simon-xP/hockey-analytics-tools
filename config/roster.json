@@ -1,0 +1,100 @@
+{
+  "league_settings": {
+    "c": 2,
+    "lw": 2,
+    "rw": 2,
+    "d": 4,
+    "g": 2,
+    "util": 1,
+    "bn": 4,
+    "ir": 2,
+    "ir_plus": 2
+  },
+  "players": [
+    {
+      "name": "Connor McDavid",
+      "team": "EDM",
+      "positions": ["C"]
+    },
+    {
+      "name": "Josh Norris",
+      "team": "BUF",
+      "positions": ["C"]
+    },
+    {
+      "name": "Vasily Podkolzin",
+      "team": "EDM",
+      "positions": ["LW", "RW"]
+    },
+    {
+      "name": "Brady Tkachuk",
+      "team": "OTT",
+      "positions": ["C", "LW"]
+    },
+    {
+      "name": "Jordan Eberle",
+      "team": "SEA",
+      "positions": ["RW"]
+    },
+    {
+      "name": "Will Cuylle",
+      "team": "NYR",
+      "positions": ["LW", "RW"]
+    },
+    {
+      "name": "Seth Jones",
+      "team": "FLA",
+      "positions": ["D"]
+    },
+    {
+      "name": "Moritz Seider",
+      "team": "DET",
+      "positions": ["D"]
+    },
+    {
+      "name": "Brandt Clarke",
+      "team": "LAK",
+      "positions": ["D"]
+    },
+    {
+      "name": "Jeremy Lauzon",
+      "team": "VGK",
+      "positions": ["D"]
+    },
+    {
+      "name": "Jason Robertson",
+      "team": "DAL",
+      "positions": ["LW", "RW"]
+    },
+    {
+      "name": "Luke Evangelista",
+      "team": "NSH",
+      "positions": ["RW"]
+    },
+    {
+      "name": "Beckett Sennecke",
+      "team": "ANA",
+      "positions": ["RW"]
+    },
+    {
+      "name": "Zeev Buium",
+      "team": "VAN",
+      "positions": ["D"]
+    },
+    {
+      "name": "Jeremy Swayman",
+      "team": "BOS",
+      "positions": ["G"]
+    },
+    {
+      "name": "Tristan Jarry",
+      "team": "EDM",
+      "positions": ["G"]
+    },
+    {
+      "name": "Joel Hofer",
+      "team": "STL",
+      "positions": ["G"]
+    }
+  ]
+}
