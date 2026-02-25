@@ -6,7 +6,7 @@ from typing import Optional
 
 from src.core.db import get_session
 from src.core.resolver import resolve_player
-from src.tools.schedule.models import LeagueSettings, RosterPlayer, Roster
+from src.tools.schedule.models import RosterSlotSettings, RosterPlayer, Roster
 
 
 CONFIG_DIR = Path(__file__).parents[3] / "config"
@@ -29,7 +29,7 @@ def load_roster(path: Path = DEFAULT_ROSTER_PATH, resolve_ids: bool = True) -> R
 
     # Parse league settings
     settings_data = data.get("league_settings", {})
-    league_settings = LeagueSettings(
+    roster_slot_settings = RosterSlotSettings(
         c=settings_data.get("c", 2),
         lw=settings_data.get("lw", 2),
         rw=settings_data.get("rw", 2),
@@ -56,7 +56,7 @@ def load_roster(path: Path = DEFAULT_ROSTER_PATH, resolve_ids: bool = True) -> R
     if resolve_ids:
         players = _resolve_player_ids(players)
 
-    return Roster(players=players, league_settings=league_settings)
+    return Roster(players=players, roster_slot_settings=roster_slot_settings)
 
 
 def _resolve_player_ids(players: list[RosterPlayer]) -> list[RosterPlayer]:
@@ -87,15 +87,15 @@ def save_roster(roster: Roster, path: Path = DEFAULT_ROSTER_PATH) -> None:
     """
     data = {
         "league_settings": {
-            "c": roster.league_settings.c,
-            "lw": roster.league_settings.lw,
-            "rw": roster.league_settings.rw,
-            "d": roster.league_settings.d,
-            "g": roster.league_settings.g,
-            "util": roster.league_settings.util,
-            "bn": roster.league_settings.bn,
-            "ir": roster.league_settings.ir,
-            "ir_plus": roster.league_settings.ir_plus,
+            "c": roster.roster_slot_settings.c,
+            "lw": roster.roster_slot_settings.lw,
+            "rw": roster.roster_slot_settings.rw,
+            "d": roster.roster_slot_settings.d,
+            "g": roster.roster_slot_settings.g,
+            "util": roster.roster_slot_settings.util,
+            "bn": roster.roster_slot_settings.bn,
+            "ir": roster.roster_slot_settings.ir,
+            "ir_plus": roster.roster_slot_settings.ir_plus,
         },
         "players": [
             {

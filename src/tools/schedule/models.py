@@ -5,7 +5,7 @@ from typing import Optional
 
 
 @dataclass
-class LeagueSettings:
+class RosterSlotSettings:
     """Fantasy league roster slot configuration."""
 
     # Forward slots
@@ -74,7 +74,7 @@ class Roster:
     """Complete fantasy roster."""
 
     players: list[RosterPlayer] = field(default_factory=list)
-    league_settings: LeagueSettings = field(default_factory=LeagueSettings)
+    roster_slot_settings: RosterSlotSettings = field(default_factory=RosterSlotSettings)
 
     def skaters(self) -> list[RosterPlayer]:
         """Return all non-goalie players."""
@@ -84,7 +84,6 @@ class Roster:
         """Return all goalies."""
         return [p for p in self.players if p.is_goalie()]
 
-    # not super useful
     def players_by_team(self, team: str) -> list[RosterPlayer]:
         """Return all players on a specific team."""
         return [p for p in self.players if p.team == team]

@@ -1,4 +1,4 @@
-from src.tools.schedule.models import LeagueSettings, RosterPlayer, Roster
+from src.tools.schedule.models import RosterSlotSettings, RosterPlayer, Roster
 from src.tools.schedule.config import load_roster, save_roster, add_player, remove_player
 from src.tools.schedule.optimizer import (
     analyze,
@@ -11,7 +11,7 @@ from src.tools.schedule.optimizer import (
 
 __all__ = [
     # Models
-    "LeagueSettings",
+    "RosterSlotSettings",
     "RosterPlayer",
     "Roster",
     "DayAnalysis",

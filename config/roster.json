@@ -17,14 +17,14 @@
       "positions": ["C"]
     },
     {
-      "name": "Josh Norris",
-      "team": "BUF",
-      "positions": ["C"]
+      "name": "Ryan Hartman",
+      "team": "MIN",
+      "positions": ["C", "RW"]
     },
     {
-      "name": "Vasily Podkolzin",
-      "team": "EDM",
-      "positions": ["LW", "RW"]
+      "name": "Charlie Coyle",
+      "team": "CBJ",
+      "positions": ["C", "RW"]
     },
     {
       "name": "Brady Tkachuk",
@@ -42,9 +42,9 @@
       "positions": ["LW", "RW"]
     },
     {
-      "name": "Seth Jones",
-      "team": "FLA",
-      "positions": ["D"]
+      "name": "Josh Doan",
+      "team": "BUF",
+      "positions": ["LW", "RW"]
     },
     {
       "name": "Moritz Seider",
@@ -67,19 +67,19 @@
       "positions": ["LW", "RW"]
     },
     {
-      "name": "Luke Evangelista",
-      "team": "NSH",
+      "name": "Matthew Tkachuk",
+      "team": "FLA",
+      "positions": ["LW", "RW"]
+    },
+    {
+      "name": "Jordan Kyrou",
+      "team": "STL",
       "positions": ["RW"]
     },
     {
-      "name": "Beckett Sennecke",
-      "team": "ANA",
-      "positions": ["RW"]
-    },
-    {
-      "name": "Zeev Buium",
-      "team": "VAN",
-      "positions": ["D"]
+      "name": "Pierre-Luc Dubois",
+      "team": "WSH",
+      "positions": ["C", "LW"]
     },
     {
       "name": "Jeremy Swayman",

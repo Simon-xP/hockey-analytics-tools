@@ -6,7 +6,7 @@ from typing import Optional
 
 from src.core.db import get_session
 from src.core.models import Game, Team
-from src.tools.schedule.models import Roster, RosterPlayer, LeagueSettings
+from src.tools.schedule.models import Roster, RosterPlayer, RosterSlotSettings
 from src.tools.schedule.config import load_roster
 
 
@@ -53,7 +53,7 @@ def get_players_playing_on_date(roster: Roster, target_date: date) -> list[Roste
 
 def assign_players_to_slots(
     players: list[RosterPlayer],
-    league_settings: LeagueSettings,
+    roster_slot_settings: RosterSlotSettings,
 ) -> dict[str, list[RosterPlayer]]:
     """
     Optimally assign players to roster slots using bipartite matching.
@@ -68,7 +68,7 @@ def assign_players_to_slots(
     Returns:
         Dict mapping position -> list of assigned players
     """
-    slots = league_settings.active_slots()
+    slots = roster_slot_settings.active_slots()
 
     assignments: dict[str, list[RosterPlayer]] = {pos: [] for pos in slots}
     assigned_players: set[str] = set()
@@ -129,9 +129,9 @@ def assign_players_to_slots(
 def analyze_day(roster: Roster, target_date: date) -> DayAnalysis:
     """Analyze roster slot availability for a single day."""
     playing = get_players_playing_on_date(roster, target_date)
-    assignments = assign_players_to_slots(playing, roster.league_settings)
+    assignments = assign_players_to_slots(playing, roster.roster_slot_settings)
 
-    slots = roster.league_settings.active_slots()
+    slots = roster.roster_slot_settings.active_slots()
 
     slots_used = {pos: len(assigned) for pos, assigned in assignments.items()}
     slots_available = {pos: slots[pos] - slots_used[pos] for pos in slots}
@@ -197,7 +197,7 @@ def print_week_analysis(roster: Roster, yahoo_week: int) -> None:
     print(f"\n{'='*60}")
     print(f"WEEK {yahoo_week} ANALYSIS ({days[0].date} to {days[-1].date})")
     print(f"{'='*60}")
-    print(f"League slots: {roster.league_settings.active_slots()}")
+    print(f"League slots: {roster.roster_slot_settings.active_slots()}")
     print()
 
     for day in days:
@@ -207,7 +207,7 @@ def print_week_analysis(roster: Roster, yahoo_week: int) -> None:
         if day.playing:
             for pos in ["C", "LW", "RW", "D", "G", "UTIL"]:
                 assigned = day.assignments.get(pos, [])
-                max_slots = roster.league_settings.active_slots()[pos]
+                max_slots = roster.roster_slot_settings.active_slots()[pos]
                 names = [p.name.split()[-1] for p in assigned]
                 status = "FULL" if len(assigned) >= max_slots else f"+{max_slots - len(assigned)}"
                 print(f"    {pos}: {', '.join(names) if names else '-'} [{status}]")
