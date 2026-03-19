@@ -84,6 +84,41 @@ def get_all_players() -> list[dict]:
     return players
 
 
+def get_team_schedule(team_abbrev: str, season: str = "20252026") -> list[dict]:
+    """
+    Fetch a team's full season schedule with game results.
+
+    Returns completed regular-season games only (no preseason/playoffs).
+    Each dict has: game_id, game_date, home_team_id, away_team_id,
+                   home_abbrev, away_abbrev, home_score, away_score
+    """
+    response = requests.get(f"{BASE_URL}/club-schedule-season/{team_abbrev}/{season}")
+    response.raise_for_status()
+    data = response.json()
+
+    games = []
+    for g in data.get("games", []):
+        # Regular season only (gameType 2)
+        if g.get("gameType") != 2:
+            continue
+        # Only completed games
+        if g.get("gameState") not in ("FINAL", "OFF"):
+            continue
+
+        games.append({
+            "game_id": g["id"],
+            "game_date": g["gameDate"],
+            "home_team_id": g["homeTeam"]["id"],
+            "away_team_id": g["awayTeam"]["id"],
+            "home_abbrev": g["homeTeam"]["abbrev"],
+            "away_abbrev": g["awayTeam"]["abbrev"],
+            "home_score": g["homeTeam"]["score"],
+            "away_score": g["awayTeam"]["score"],
+        })
+
+    return games
+
+
 def get_skaters_with_games(season: str = "20252026") -> list[dict]:
     """
     Fetch all skaters who have played at least one game in the season.

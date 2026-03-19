@@ -12,6 +12,8 @@ class Game(Base):
     home_team_id = Column(Integer, ForeignKey("teams.team_id"), nullable=False)
     away_team_id = Column(Integer, ForeignKey("teams.team_id"), nullable=False)
     yahoo_week = Column(Integer, index=True)
+    home_score = Column(Integer)
+    away_score = Column(Integer)
 
     # Relationships
     home_team = relationship("Team", foreign_keys=[home_team_id])
