@@ -16,11 +16,15 @@ from typing import Protocol
 
 from sqlalchemy.orm import Session
 
+from sqlalchemy import or_
+
 from src.core.models import (
+    Game,
     GameIndividualStats,
     GameOnIceStats,
     OnIceStats,
     SeasonStats,
+    Team,
 )
 from src.tools.forecasting.models import FeatureSet
 
@@ -313,3 +317,99 @@ class GameContextExtractor:
         if prior_game_stat and prior_game_stat.game_date:
             days_rest = (fs.game_date - prior_game_stat.game_date).days
             fs.features["is_b2b"] = 1.0 if days_rest == 1 else 0.0
+
+
+# =============================================================================
+# OPPONENT CONTEXT (derived from game scores in the games table)
+# =============================================================================
+
+class OpponentExtractor:
+    """Add opponent team quality features.
+
+    Uses game scores from the games table to compute the opponent's
+    goals-against average and goals-for average, both season-to-date and
+    over a rolling window. All stats computed as-of before_date to avoid
+    data leakage.
+
+    Features:
+      opp_gaa — opponent goals against per game (season to date)
+      opp_gfa — opponent goals for per game (season to date)
+      opp_rolling_5_gaa — opponent GAA over last 5 games
+      opp_is_b2b — whether the opponent is on a back-to-back
+    """
+
+    def __init__(self, window: int = 5):
+        self.window = window
+
+    def extract(self, session: Session, fs: FeatureSet, before_date: date) -> None:
+        # Find opponent from the player's game stats for this date
+        gs = (
+            session.query(GameIndividualStats)
+            .filter(
+                GameIndividualStats.nhl_id == fs.nhl_id,
+                GameIndividualStats.game_date == fs.game_date,
+            )
+            .first()
+        )
+        if not gs or not gs.opponent_abbrev:
+            return
+
+        # Look up opponent team_id
+        opp_team = (
+            session.query(Team)
+            .filter(Team.abbrev == gs.opponent_abbrev)
+            .first()
+        )
+        if not opp_team:
+            return
+
+        opp_id = opp_team.team_id
+
+        # Get all completed opponent games before this date (with scores)
+        opp_games = (
+            session.query(Game)
+            .filter(
+                Game.date < before_date,
+                Game.home_score.isnot(None),
+                or_(
+                    Game.home_team_id == opp_id,
+                    Game.away_team_id == opp_id,
+                ),
+            )
+            .order_by(Game.date.desc())
+            .all()
+        )
+
+        if not opp_games:
+            return
+
+        # Compute goals against and goals for from the opponent's perspective
+        def goals_against_for(games):
+            ga_list = []
+            gf_list = []
+            for g in games:
+                if g.home_team_id == opp_id:
+                    ga_list.append(g.away_score)
+                    gf_list.append(g.home_score)
+                else:
+                    ga_list.append(g.home_score)
+                    gf_list.append(g.away_score)
+            return ga_list, gf_list
+
+        # Season to date
+        ga_all, gf_all = goals_against_for(opp_games)
+        fs.features["opp_gaa"] = sum(ga_all) / len(ga_all)
+        fs.features["opp_gfa"] = sum(gf_all) / len(gf_all)
+
+        # Rolling window
+        if len(opp_games) >= self.window:
+            ga_recent, gf_recent = goals_against_for(opp_games[:self.window])
+            fs.features[f"opp_rolling_{self.window}_gaa"] = (
+                sum(ga_recent) / len(ga_recent)
+            )
+
+        # Opponent back-to-back: did the opponent play yesterday?
+        if opp_games:
+            most_recent = opp_games[0].date
+            days_since = (fs.game_date - most_recent).days
+            fs.features["opp_is_b2b"] = 1.0 if days_since == 1 else 0.0

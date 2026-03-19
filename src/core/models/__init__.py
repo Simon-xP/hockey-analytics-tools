@@ -4,5 +4,9 @@ from src.core.models.player import Player, PlayerAlias
 from src.core.models.game import Game, GoalieStart
 from src.core.models.stats import SeasonStats
 from src.core.models.on_ice_stats import OnIceStats
+from src.core.models.game_stats import GameIndividualStats, GameOnIceStats
 
-__all__ = ["Base", "Team", "Player", "PlayerAlias", "Game", "GoalieStart", "SeasonStats", "OnIceStats"]
+__all__ = [
+    "Base", "Team", "Player", "PlayerAlias", "Game", "GoalieStart",
+    "SeasonStats", "OnIceStats", "GameIndividualStats", "GameOnIceStats",
+]
