@@ -331,6 +331,9 @@ class OpponentExtractor:
     over a rolling window. All stats computed as-of before_date to avoid
     data leakage.
 
+    Caches all game results and team lookups on first use within a session
+    to avoid repeated DB queries during backtests.
+
     Features:
       opp_gaa — opponent goals against per game (season to date)
       opp_gfa — opponent goals for per game (season to date)
@@ -340,8 +343,49 @@ class OpponentExtractor:
 
     def __init__(self, window: int = 5):
         self.window = window
+        # Caches — populated on first extract() call
+        self._abbrev_to_id: dict[str, int] | None = None
+        # team_id -> list of (game_date, goals_for, goals_against), sorted desc
+        self._team_games: dict[int, list[tuple[date, int, int]]] | None = None
+
+    def _load_cache(self, session: Session) -> None:
+        """Load all team lookups and game results into memory."""
+        # Team abbrev -> id
+        teams = session.query(Team).all()
+        self._abbrev_to_id = {t.abbrev: t.team_id for t in teams}
+
+        # All completed games with scores
+        all_games = (
+            session.query(Game)
+            .filter(Game.home_score.isnot(None))
+            .order_by(Game.date.desc())
+            .all()
+        )
+
+        # Index by team_id — each game appears under both teams
+        self._team_games = {}
+        for g in all_games:
+            # Home team perspective
+            if g.home_team_id not in self._team_games:
+                self._team_games[g.home_team_id] = []
+            self._team_games[g.home_team_id].append(
+                (g.date, g.home_score, g.away_score)
+            )
+            # Away team perspective
+            if g.away_team_id not in self._team_games:
+                self._team_games[g.away_team_id] = []
+            self._team_games[g.away_team_id].append(
+                (g.date, g.away_score, g.home_score)
+            )
+
+        # Sort each team's games by date descending (most recent first)
+        for team_id in self._team_games:
+            self._team_games[team_id].sort(key=lambda x: x[0], reverse=True)
 
     def extract(self, session: Session, fs: FeatureSet, before_date: date) -> None:
+        if self._abbrev_to_id is None:
+            self._load_cache(session)
+
         # Find opponent from the player's game stats for this date
         gs = (
             session.query(GameIndividualStats)
@@ -354,62 +398,36 @@ class OpponentExtractor:
         if not gs or not gs.opponent_abbrev:
             return
 
-        # Look up opponent team_id
-        opp_team = (
-            session.query(Team)
-            .filter(Team.abbrev == gs.opponent_abbrev)
-            .first()
-        )
-        if not opp_team:
+        opp_id = self._abbrev_to_id.get(gs.opponent_abbrev)
+        if not opp_id:
             return
 
-        opp_id = opp_team.team_id
-
-        # Get all completed opponent games before this date (with scores)
-        opp_games = (
-            session.query(Game)
-            .filter(
-                Game.date < before_date,
-                Game.home_score.isnot(None),
-                or_(
-                    Game.home_team_id == opp_id,
-                    Game.away_team_id == opp_id,
-                ),
-            )
-            .order_by(Game.date.desc())
-            .all()
-        )
-
-        if not opp_games:
+        team_games = self._team_games.get(opp_id)
+        if not team_games:
             return
 
-        # Compute goals against and goals for from the opponent's perspective
-        def goals_against_for(games):
-            ga_list = []
-            gf_list = []
-            for g in games:
-                if g.home_team_id == opp_id:
-                    ga_list.append(g.away_score)
-                    gf_list.append(g.home_score)
-                else:
-                    ga_list.append(g.home_score)
-                    gf_list.append(g.away_score)
-            return ga_list, gf_list
+        # Filter to games before this date (list is sorted desc)
+        prior = [(gf, ga) for (gd, gf, ga) in team_games if gd < before_date]
+
+        if not prior:
+            return
 
         # Season to date
-        ga_all, gf_all = goals_against_for(opp_games)
+        ga_all = [ga for _, ga in prior]
+        gf_all = [gf for gf, _ in prior]
         fs.features["opp_gaa"] = sum(ga_all) / len(ga_all)
         fs.features["opp_gfa"] = sum(gf_all) / len(gf_all)
 
         # Rolling window
-        if len(opp_games) >= self.window:
-            ga_recent, gf_recent = goals_against_for(opp_games[:self.window])
+        if len(prior) >= self.window:
+            recent = prior[:self.window]
             fs.features[f"opp_rolling_{self.window}_gaa"] = (
-                sum(ga_recent) / len(ga_recent)
+                sum(ga for _, ga in recent) / len(recent)
             )
 
         # Opponent back-to-back: did the opponent play yesterday?
-        if opp_games:
-            most_recent = opp_games[0].date
-            days_since = (fs.game_date - most_recent).days
-            fs.features["opp_is_b2b"] = 1.0 if days_since == 1 else 0.0
+        most_recent_date = next(
+            gd for gd, _, _ in team_games if gd < before_date
+        )
+        days_since = (fs.game_date - most_recent_date).days
+        fs.features["opp_is_b2b"] = 1.0 if days_since == 1 else 0.0

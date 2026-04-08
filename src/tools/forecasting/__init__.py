@@ -7,6 +7,7 @@ Public API:
 """
 
 from datetime import date
+from pathlib import Path
 
 from src.core.db import get_session
 from src.tools.forecasting.baselines import SeasonAverageModel, WeightedBlendModel
@@ -16,10 +17,12 @@ from src.tools.forecasting.evaluation import (
 )
 from src.tools.forecasting.features import (
     GameContextExtractor,
+    OpponentExtractor,
     RollingIndividualExtractor,
     RollingOnIceExtractor,
     SeasonAggregateExtractor,
 )
+from src.tools.forecasting.xgboost_model import XGBoostModel
 from src.tools.forecasting.models import (
     BacktestResult,
     EvaluationResult,
@@ -31,6 +34,7 @@ from src.tools.forecasting.models import (
 MODELS = {
     "season_average": SeasonAverageModel,
     "weighted_blend": WeightedBlendModel,
+    "xgboost": XGBoostModel,
 }
 
 # Default feature extractors
@@ -40,13 +44,29 @@ DEFAULT_EXTRACTORS = [
     RollingIndividualExtractor(),
     SeasonAggregateExtractor(),
     GameContextExtractor(),
+    OpponentExtractor(),
 ]
 
 
+MODEL_DIR = Path(__file__).parents[3] / "models"
+
+
 def _get_model(name: str):
-    """Get model instance by name."""
+    """Get model instance by name.
+
+    For XGBoost, loads a trained model from disk. Train first via
+    train_xgboost().
+    """
     if name not in MODELS:
         raise ValueError(f"Unknown model: {name}. Available: {list(MODELS.keys())}")
+    if name == "xgboost":
+        model_path = MODEL_DIR / "xgboost_latest.pkl"
+        if not model_path.exists():
+            raise FileNotFoundError(
+                f"No trained XGBoost model at {model_path}. "
+                "Run train_xgboost() first."
+            )
+        return XGBoostModel.load(model_path)
     return MODELS[name]()
 
 
@@ -162,13 +182,42 @@ def compare_models(
     return results
 
 
+def train_xgboost(
+    training_season: str = "20242025",
+    min_games: int = 10,
+) -> XGBoostModel:
+    """Train an XGBoost model on a season of data and save to disk.
+
+    Args:
+        training_season: Season to train on
+        min_games: Minimum games before a player's data is used
+
+    Returns:
+        Trained XGBoostModel
+    """
+    model = XGBoostModel()
+    model.train(
+        season=training_season,
+        feature_extractors=DEFAULT_EXTRACTORS,
+        min_games=min_games,
+    )
+
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    model_path = MODEL_DIR / "xgboost_latest.pkl"
+    model.save(model_path)
+
+    return model
+
+
 __all__ = [
     "forecast",
     "backtest",
     "compare_models",
+    "train_xgboost",
     # Models
     "SeasonAverageModel",
     "WeightedBlendModel",
+    "XGBoostModel",
     "MODELS",
     # Evaluation
     "BacktestHarness",
