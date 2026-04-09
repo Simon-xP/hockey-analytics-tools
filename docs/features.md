@@ -80,8 +80,10 @@ Each of these needs individual evaluation for predictive power:
 
 | Feature | Status | What's Needed |
 |---------|--------|---------------|
-| Opponent team stats (GAA, etc.) | **Not yet built** | NHL API team stats ingest |
+| Opponent team stats (GAA, GFA, rolling GAA) | **Implemented** | `OpponentExtractor` derives from game scores |
+| Opponent B2B | **Implemented** | `OpponentExtractor.opp_is_b2b` |
 | Opponent starting goalie | **Not yet built** | Daily Faceoff scraper (stub exists) |
 | On-ice game logs | **Not yet scraped** | NST scraper supports it but doubles request volume |
 | +/- per game | **Not available** | Derive from on-ice GF - GA, or find another source |
-| PIM (historical) | Available in `SeasonStats` | Implemented in `SeasonAggregateExtractor` |
+| PIM (historical) | **Implemented** | `SeasonAggregateExtractor` |
+| PP/SH situation splits | **Not yet separated** | Need situation-specific game logs from NST |

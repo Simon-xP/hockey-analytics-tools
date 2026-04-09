@@ -87,8 +87,9 @@ See `docs/features.md` for the full table with DB column mappings.
 **Context:**
 - is_home (bool)
 - is_b2b (bool) — player's team on back-to-back
-- Opponent strength (GA/60, xGA/60) — **not yet built**, needs NHL API
-- Opponent B2B — **not yet built**, needs schedule derivation
+- opp_gaa, opp_gfa — opponent goals against/for average (season to date)
+- opp_rolling_5_gaa — opponent GAA over last 5 games
+- opp_is_b2b — opponent on back-to-back
 
 **Historical baseline (prior season per-GP rates):**
 - Goals, assists, shots, hits, blocks, PIM per game
@@ -168,14 +169,16 @@ to weight the prior vs. recent data.
 
 ## Opponent Adjustment
 
-For a player facing Team X, we need team-level defensive quality:
-- Team X goals against per 60 (relative to league average)
-- Team X xGA/60
-- Team X shots against per 60
-- Team X penalty kill effectiveness / penalty frequency
+Implemented in `OpponentExtractor`. For a player facing Team X, we compute
+from game scores (no data leakage — only uses games before the target date):
+- Team X goals against average (season to date)
+- Team X goals for average (season to date)
+- Team X GAA over last 5 games (recent defensive form)
+- Whether Team X is on a back-to-back
 
-**Data source: NHL API** for team-level stats (points, GA, etc.).
-Can query team stats at any point in the season.
+Game scores are stored in the `games` table (`home_score`, `away_score`),
+backfilled from the NHL API club schedule endpoint for 2023-24, 2024-25,
+and 2025-26 seasons.
 
 ### Power Play Factor (future enhancement)
 
@@ -197,11 +200,10 @@ discussed further — involves modeling PP time separately from 5v5.
 - Works well with mixed feature types (rates, bools, counts)
 
 The existing heuristic baselines (season average, weighted blend)
-serve as the bar to beat. If gradient-boosted trees can't beat a
-simple season average, something is wrong.
-
-Model architecture is an area for ongoing discussion — we may revisit
-after seeing initial results.
+serve as the bar to beat. XGBoost has been trained and beats both
+baselines on all 5 forecast stats (goals, assists, shots, hits,
+blocks per 60) on both MAE and Poisson log-likelihood. Calibration
+is near-perfect (mean predicted ≈ mean actual).
 
 ---
 
