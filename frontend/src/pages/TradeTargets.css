@@ -1,0 +1,56 @@
+.trade-targets h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 24px;
+}
+
+.trade-targets .card {
+  margin-bottom: 20px;
+}
+
+.regression-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.regression-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 10px 10px;
+}
+
+.regression-table td {
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--border);
+}
+
+.regression-table .col-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.clickable-row:hover {
+  background: var(--surface-hover);
+}
+
+.stat-positive {
+  color: var(--positive);
+  font-weight: 600;
+}
+
+.stat-negative {
+  color: var(--negative);
+  font-weight: 600;
+}

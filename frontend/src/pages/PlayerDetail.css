@@ -1,0 +1,87 @@
+.player-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.player-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.player-meta {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  background: var(--surface-raised);
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+
+.player-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.span-full {
+  grid-column: 1 / -1;
+}
+
+/* Game log table */
+.game-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.game-log-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 8px 8px;
+}
+
+.game-log-table td {
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--border);
+}
+
+.error {
+  color: var(--danger);
+}
+
+/* Forecast */
+.forecast-grid {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.forecast-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 80px;
+}
+
+.forecast-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

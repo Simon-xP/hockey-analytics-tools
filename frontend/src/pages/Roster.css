@@ -1,0 +1,183 @@
+.roster-page h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 24px;
+}
+
+.roster-page .card {
+  margin-bottom: 20px;
+}
+
+/* Week schedule strip */
+.week-schedule {
+  display: flex;
+  gap: 4px;
+}
+
+.week-day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: var(--surface);
+  border-radius: 8px;
+}
+
+.day-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.day-date {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.day-playing {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.week-day-empty .day-playing {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.day-positions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  align-items: center;
+  min-height: 20px;
+}
+
+.open-label {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.pos-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--accent-light);
+  background: var(--accent-dim);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.pos-open {
+  color: var(--positive);
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.slots-full {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Roster table */
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.roster-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 6px 8px;
+  white-space: nowrap;
+}
+
+.roster-table td {
+  padding: 6px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--border);
+}
+
+.roster-table .col-slot {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  width: 36px;
+}
+
+.roster-table .col-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.roster-table .col-fpts {
+  font-weight: 600;
+  color: var(--accent-light);
+  text-align: right;
+}
+
+.roster-table th.col-fpts {
+  text-align: right;
+}
+
+.roster-table .col-game {
+  text-align: center;
+  width: 44px;
+  font-size: 0.7rem;
+}
+
+.roster-table th.col-game {
+  text-align: center;
+}
+
+.game-matchup {
+  color: var(--positive);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.no-game {
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+.player-inactive {
+  opacity: 0.45;
+}
+
+.status-badge {
+  margin-left: 6px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--negative);
+  background: rgba(248, 113, 113, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.clickable-row:hover {
+  background: var(--surface-hover);
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}

@@ -1,0 +1,75 @@
+/* ==========================================================================
+   Hockey Analytics — Global Styles
+   Deep purple/indigo dark theme
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --surface: #0b0b1a;
+  --surface-raised: #12122a;
+  --surface-hover: #1a1a3a;
+  --surface-card: #161630;
+
+  /* Text */
+  --text-primary: #e8e8f0;
+  --text-secondary: #9d9db8;
+  --text-muted: #5b5b7e;
+
+  /* Borders */
+  --border: #252547;
+  --border-light: #2e2e5a;
+
+  /* Accent — purple/indigo */
+  --accent: #7c5cfc;
+  --accent-light: #9b82fc;
+  --accent-dim: rgba(124, 92, 252, 0.12);
+  --accent-glow: rgba(124, 92, 252, 0.25);
+
+  /* Semantic */
+  --positive: #34d399;
+  --negative: #f87171;
+  --warning: #fbbf24;
+
+  /* Fonts */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}

@@ -52,3 +52,4 @@ data/cache/
 *.parquet
 *.db
 *.sqlite
+config/yahoo_token.json

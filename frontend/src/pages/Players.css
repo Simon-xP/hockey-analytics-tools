@@ -1,0 +1,151 @@
+.players-page h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 24px;
+}
+
+.search-bar {
+  margin-bottom: 16px;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 480px;
+  padding: 12px 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+}
+
+.player-results {
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 4px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s ease;
+}
+
+.player-row:last-child {
+  border-bottom: none;
+}
+
+.player-row:hover {
+  background: var(--surface-hover);
+}
+
+.player-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.player-pos {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+/* Trending players */
+.trending-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.trending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.trending-row:last-child {
+  border-bottom: none;
+}
+
+.trending-row:hover {
+  background: var(--surface-hover);
+}
+
+.trending-player {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.trending-player .player-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.trending-player .player-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.trending-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pct-owned {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pct-delta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta-up {
+  color: var(--positive);
+}
+
+.delta-down {
+  color: var(--negative);
+}
+
+.status-badge {
+  margin-left: 4px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--negative);
+  background: rgba(248, 113, 113, 0.15);
+  padding: 1px 4px;
+  border-radius: 3px;
+}

@@ -1,0 +1,46 @@
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--border-light);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+.card-header {
+  padding: 16px 20px 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-header-link {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.card-header-link:hover {
+  color: var(--accent-light);
+}
+
+.card-header-arrow {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.card-header-link:hover .card-header-arrow {
+  color: var(--accent-light);
+}
+
+.card-body {
+  padding: 16px 20px 20px;
+}
