@@ -220,19 +220,12 @@ def get_forecast(nhl_id: int, game_date: str | None = None):
                 predicted_toi[situation] = toi
 
                 if situation == "other":
-                    # Rolling average for Other
-                    other_games = load_player_game_stats(
-                        session, nhl_id, "other_combined", target_date,
-                    )
-                    if other_games:
-                        rf = extract_rolling_features(other_games)
-                        predicted_rates[situation] = {
-                            "goals_per60": rf.get("season_avg_goals", 0),
-                            "assists_per60": rf.get("season_avg_first_assists", 0)
-                                           + rf.get("season_avg_second_assists", 0),
-                        }
-                    else:
-                        predicted_rates[situation] = {}
+                    # League-average rates for Other situations (4v4/3v3/EN).
+                    # Too rare and noisy for individual prediction.
+                    predicted_rates[situation] = {
+                        "goals_per60": 2.38,
+                        "assists_per60": 3.06,
+                    }
 
                 elif situation == "pk":
                     # Empirical Bayes for PK goals/assists

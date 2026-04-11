@@ -1,4 +1,4 @@
-.optimal-adds h1 {
+.goalie-matchups-page h1 {
   font-size: 1.75rem;
   font-weight: 700;
   margin: 0 0 8px;
@@ -10,51 +10,75 @@
   margin: 0 0 24px;
 }
 
-.adds-table {
+.matchups-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
 }
 
-.adds-table th {
+.matchups-table th {
   text-align: left;
   color: var(--text-muted);
   font-weight: 600;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 0 8px 10px;
-  position: sticky;
-  top: 0;
-  background: var(--surface-card);
+  padding: 0 10px 10px;
 }
 
-.adds-table td {
-  padding: 7px 8px;
+.matchups-table td {
+  padding: 8px 10px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   border-top: 1px solid var(--border);
 }
 
-.adds-table .col-rank {
+.matchups-table .col-rank {
   color: var(--text-muted);
   width: 30px;
   text-align: center;
 }
 
-.adds-table .col-name {
-  font-weight: 500;
+.matchups-table th.col-rank {
+  text-align: center;
+}
+
+.col-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
-.adds-table .col-fpts {
-  font-weight: 700;
-  color: var(--highlight-light);
+.matchup-logo {
+  width: 22px;
+  height: 22px;
+}
+
+.col-stat {
   text-align: right;
 }
 
-.adds-table th.col-fpts {
+.matchups-table th.col-stat {
   text-align: right;
+}
+
+.col-fpts {
+  text-align: right;
+  font-weight: 700;
+}
+
+.matchups-table th.col-fpts {
+  text-align: right;
+}
+
+.fpts-good {
+  color: var(--highlight-light);
+}
+
+.fpts-bad {
+  color: var(--negative);
 }
 
 .clickable-row {
@@ -64,15 +88,4 @@
 
 .clickable-row:hover {
   background: var(--surface-hover);
-}
-
-.player-status {
-  margin-left: 6px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--negative);
-  background: rgba(248, 113, 113, 0.15);
-  padding: 1px 5px;
-  border-radius: 3px;
-  vertical-align: middle;
 }

@@ -7,6 +7,9 @@ import PlayerDetail from "./pages/PlayerDetail";
 import Roster from "./pages/Roster";
 import OptimalAdds from "./pages/OptimalAdds";
 import TradeTargets from "./pages/TradeTargets";
+import GoalieMatchups from "./pages/GoalieMatchups";
+import StreamableGoalies from "./pages/StreamableGoalies";
+import News from "./pages/News";
 import { prefetchAll } from "./api/client";
 
 export default function App() {
@@ -24,6 +27,9 @@ export default function App() {
           <Route path="roster" element={<Roster />} />
           <Route path="adds" element={<OptimalAdds />} />
           <Route path="trades" element={<TradeTargets />} />
+          <Route path="goalie-matchups" element={<GoalieMatchups />} />
+          <Route path="streamable-goalies" element={<StreamableGoalies />} />
+          <Route path="news" element={<News />} />
         </Route>
       </Routes>
     </BrowserRouter>

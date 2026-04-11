@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../components/Card";
 import { useApi } from "../hooks/useApi";
@@ -8,9 +9,7 @@ import {
 } from "../api/client";
 import "./Roster.css";
 
-function WeekSchedule({ weekSummary }) {
-  if (!weekSummary || weekSummary.length === 0) return null;
-
+function DayView({ weekSummary }) {
   return (
     <div className="week-schedule">
       {weekSummary.map((day) => (
@@ -47,6 +46,77 @@ function WeekSchedule({ weekSummary }) {
   );
 }
 
+function PositionView({ weekSummary }) {
+  const positions = ["C", "LW", "RW", "D", "G", "UTIL"];
+
+  // Build position -> which days have open slots
+  const positionDays = {};
+  for (const pos of positions) {
+    positionDays[pos] = weekSummary.map((day) => ({
+      dayLabel: day.day.slice(0, 3),
+      isOpen: (day.open_slots || []).includes(pos),
+    }));
+  }
+
+  return (
+    <div className="week-schedule">
+      {positions.map((pos) => {
+        const days = positionDays[pos];
+        const openCount = days.filter((d) => d.isOpen).length;
+
+        return (
+          <div key={pos} className={`week-day ${openCount === 0 ? "week-day-empty" : ""}`}>
+            <div className="day-label">{pos}</div>
+            <div className="day-playing">
+              {openCount > 0 ? `${openCount} open` : "filled"}
+            </div>
+            <div className="day-positions">
+              {days.map((d, i) => (
+                <span
+                  key={i}
+                  className={`pos-badge ${d.isOpen ? "pos-open" : "pos-filled"}`}
+                >
+                  {d.dayLabel}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WeekSchedule({ weekSummary }) {
+  const [view, setView] = useState("day");
+
+  if (!weekSummary || weekSummary.length === 0) return null;
+
+  return (
+    <div>
+      <div className="view-toggle">
+        <button
+          className={`toggle-btn ${view === "day" ? "toggle-active" : ""}`}
+          onClick={() => setView("day")}
+        >
+          Day
+        </button>
+        <button
+          className={`toggle-btn ${view === "position" ? "toggle-active" : ""}`}
+          onClick={() => setView("position")}
+        >
+          Position
+        </button>
+      </div>
+      {view === "day" ? (
+        <DayView weekSummary={weekSummary} />
+      ) : (
+        <PositionView weekSummary={weekSummary} />
+      )}
+    </div>
+  );
+}
+
 function RosterTable({ roster, weekSummary }) {
   const navigate = useNavigate();
 
@@ -55,6 +125,10 @@ function RosterTable({ roster, weekSummary }) {
   }
 
   const dayHeaders = (weekSummary || []).map((d) => d.day.slice(0, 3));
+  const inactiveSlots = ["BN", "IR", "IR+", "NA"];
+  const active = roster.filter((p) => !inactiveSlots.includes(p.selected_position));
+  const inactive = roster.filter((p) => inactiveSlots.includes(p.selected_position));
+  const colCount = 7 + dayHeaders.length;
 
   return (
     <table className="roster-table">
@@ -75,12 +149,11 @@ function RosterTable({ roster, weekSummary }) {
         </tr>
       </thead>
       <tbody>
-        {roster.map((p) => {
-          const inactive = ["BN", "IR", "IR+", "NA"].includes(p.selected_position) || p.status;
+        {active.map((p) => {
           return (
           <tr
             key={p.name}
-            className={`clickable-row ${inactive ? "player-inactive" : ""}`}
+            className="clickable-row"
             onClick={() => p.nhl_id && navigate(`/players/${p.nhl_id}`)}
           >
             <td className="col-slot">{p.selected_position}</td>
@@ -109,6 +182,42 @@ function RosterTable({ roster, weekSummary }) {
           </tr>
           );
         })}
+        {inactive.length > 0 && (
+          <tr className="roster-divider">
+            <td colSpan={colCount}></td>
+          </tr>
+        )}
+        {inactive.map((p) => (
+          <tr
+            key={p.name}
+            className="clickable-row player-inactive"
+            onClick={() => p.nhl_id && navigate(`/players/${p.nhl_id}`)}
+          >
+            <td className="col-slot">{p.selected_position}</td>
+            <td className="col-name">
+              {p.name}
+              {p.status && <span className="status-badge">{p.status}</span>}
+            </td>
+            <td>{p.position}</td>
+            <td>{p.team}</td>
+            <td>{p.avg_toi ?? "—"}</td>
+            <td className="col-fpts">{p.fpts_per_gp ?? "—"}</td>
+            <td className="col-fpts">{p.games_this_week}</td>
+            {(p.schedule || []).map((s) => (
+              <td key={s.date} className="col-game">
+                {s.has_game ? (
+                  <span className="game-matchup">
+                    {s.is_home ? "vs" : "@"}
+                    <br />
+                    {s.opponent}
+                  </span>
+                ) : (
+                  <span className="no-game">—</span>
+                )}
+              </td>
+            ))}
+          </tr>
+        ))}
       </tbody>
     </table>
   );
@@ -190,12 +299,8 @@ function ConnectedRoster() {
     return <p className="empty-state">{data?.error || "Failed to load roster"}</p>;
   }
 
-  const skaters = data.roster.filter(
-    (p) => !p.position?.includes("G") || p.position.includes(",")
-  );
-  const goalies = data.roster.filter(
-    (p) => p.position === "G" || p.selected_position === "G"
-  );
+  const goalies = data.roster.filter((p) => p.selected_position === "G");
+  const skaters = data.roster.filter((p) => p.selected_position !== "G");
 
   return (
     <>

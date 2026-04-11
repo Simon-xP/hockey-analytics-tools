@@ -36,7 +36,7 @@ function TrendingPlayers() {
           <div
             key={p.player_key}
             className="trending-row"
-            onClick={() => p.player_id && navigate(`/players/${p.player_id}`)}
+            onClick={() => p.nhl_id && navigate(`/players/${p.nhl_id}`)}
           >
             <div className="trending-player">
               <span className="player-name">{p.name}</span>

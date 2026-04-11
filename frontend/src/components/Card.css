@@ -22,13 +22,12 @@
   justify-content: space-between;
 }
 
-.card-header-link {
+.card-clickable {
   cursor: pointer;
-  transition: color 0.15s ease;
 }
 
-.card-header-link:hover {
-  color: var(--accent-light);
+.card-clickable:hover {
+  border-color: var(--accent);
 }
 
 .card-header-arrow {

@@ -31,8 +31,8 @@ export function getStandings() {
   return fetchJSON("/dashboard/standings");
 }
 
-export function getScheduleOutlook(days = 7) {
-  return fetchJSON(`/dashboard/schedule-outlook?days=${days}`);
+export function getScheduleOutlook() {
+  return fetchJSON("/dashboard/schedule-outlook");
 }
 
 export function searchPlayers(query) {
@@ -91,6 +91,38 @@ export function getYahooOptimalAdds(leagueKey, count = 50) {
 
 export function getYahooTrending(leagueKey, count = 20) {
   return fetchJSON(`/yahoo/trending/${leagueKey}?count=${count}`);
+}
+
+// News & Daily Faceoff
+export function getGoalieStarts(date) {
+  const params = date ? `?date=${date}` : "";
+  return fetchJSON(`/news/goalie-starts${params}`);
+}
+
+export function getStreamableGoalies(date) {
+  const params = date ? `?date=${date}` : "";
+  return fetchJSON(`/news/streamable-goalies${params}`);
+}
+
+export function getTeamLines(teamSlug) {
+  return fetchJSON(`/news/lines/${teamSlug}`);
+}
+
+export function getNewsFeed(limit = 20) {
+  return fetchJSON(`/news/feed?limit=${limit}`);
+}
+
+export function getTeamInjuries(teamSlug) {
+  return fetchJSON(`/news/injuries/${teamSlug}`);
+}
+
+// Goalie matchups
+export function getGoalieMatchupRankings() {
+  return fetchJSON("/goalie-matchups/rankings");
+}
+
+export function getGoalieMatchupTeam(abbrev) {
+  return fetchJSON(`/goalie-matchups/team/${abbrev}`);
 }
 
 export function getYahooRosterWeek(leagueKey) {

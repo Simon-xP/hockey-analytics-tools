@@ -19,14 +19,19 @@
   --border: #252547;
   --border-light: #2e2e5a;
 
-  /* Accent — purple/indigo */
+  /* Accent — purple/indigo (brand, navigation, structure) */
   --accent: #7c5cfc;
   --accent-light: #9b82fc;
   --accent-dim: rgba(124, 92, 252, 0.12);
   --accent-glow: rgba(124, 92, 252, 0.25);
 
+  /* Highlight — green (data, stats, actionable numbers) */
+  --highlight: #22d97f;
+  --highlight-light: #3ee896;
+  --highlight-dim: rgba(34, 217, 127, 0.12);
+
   /* Semantic */
-  --positive: #34d399;
+  --positive: #22d97f;
   --negative: #f87171;
   --warning: #fbbf24;
 

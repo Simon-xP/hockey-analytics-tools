@@ -1,0 +1,217 @@
+.streamable-page h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.sg-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Section labels row */
+.sg-section-labels {
+  display: flex;
+  padding: 0 8px 4px;
+}
+
+.sg-section-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-light);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--accent-dim);
+}
+
+.sg-section-pick {
+  flex: 2.5;
+}
+
+.sg-section-goalie {
+  flex: 2;
+  padding-left: 12px;
+}
+
+.sg-section-opp {
+  flex: 2;
+  padding-left: 12px;
+}
+
+/* Column headers & rows use same flex layout */
+.sg-header-row,
+.sg-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 8px;
+}
+
+.sg-row {
+  padding: 10px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.sg-row-clickable {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.sg-row-clickable:hover {
+  background: var(--surface-hover);
+}
+
+/* Divider between sections */
+.sg-col-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+.sg-header-row .sg-col-divider {
+  background: var(--border);
+  opacity: 0.5;
+}
+
+/* Columns */
+.sg-col-name    { flex: 3; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sg-col-score   { flex: 1.2; text-align: right; }
+.sg-col-stat    { flex: 1; text-align: right; }
+.sg-col-opp     { flex: 1.5; display: flex; align-items: center; gap: 5px; }
+
+/* Header text */
+.sg-header-row .sg-col-name,
+.sg-header-row .sg-col-stat,
+.sg-header-row .sg-col-opp {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.sg-header-row .sg-col-score {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--highlight);
+}
+
+/* Name cell content */
+.sg-tbl-logo {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.sg-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sg-player-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sg-team-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+
+/* Stat cell content */
+.sg-col-stat {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.sg-softness {
+  color: var(--accent-light);
+  font-weight: 600;
+}
+
+/* Opponent cell content */
+.sg-home-away {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.sg-opp-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sg-header-row .sg-col-opp {
+  justify-content: flex-start;
+}
+
+/* Pick score cell */
+.sg-col-score {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--highlight-light);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Confirm dot */
+.confirm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-confirmed { background: var(--highlight); }
+.dot-unconfirmed { background: var(--warning); }
+.dot-unknown { background: var(--text-muted); }
+
+/* Tooltip */
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  margin-left: 4px;
+}
+
+.tooltip-trigger {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  font-size: 0.55rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+}
+
+.tooltip-bubble {
+  position: fixed;
+  width: 240px;
+  padding: 10px 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  pointer-events: none;
+}
