@@ -49,7 +49,11 @@ CLAUDE.md
 # Data - exclude large/processed data, keep raw reference files
 data/processed/
 data/cache/
+data/moneypuck/
 *.parquet
 *.db
 *.sqlite
 config/yahoo_token.json
+
+# Trained models
+models/xg/

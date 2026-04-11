@@ -5,8 +5,10 @@ from datetime import date, timedelta
 from fastapi import APIRouter
 from sqlalchemy import func
 
+from sqlalchemy import text as sa_text
+
 from src.core.db import get_session
-from src.core.models import Game, Team, Player, GameIndividualStats
+from src.core.models import Game, Team, Player, GameIndividualStats, GameAdvancedStats
 from src.tools.fantasy.scoring import SKATER_WEIGHTS
 
 router = APIRouter()
@@ -94,94 +96,120 @@ def standings():
 
 
 @router.get("/schedule-outlook")
-def schedule_outlook(days: int = 7):
-    """Teams with the most games in the next N days."""
+def schedule_outlook():
+    """Teams with the most games this fantasy week, with per-day breakdown."""
     today = date.today()
-    end = today + timedelta(days=days)
+    # Fantasy week = Monday to Sunday
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    week_dates = [monday + timedelta(days=i) for i in range(7)]
+    day_labels = [d.strftime("%a") for d in week_dates]
 
     with get_session() as session:
         games = (
             session.query(Game)
-            .filter(Game.date >= today, Game.date <= end)
+            .filter(Game.date >= monday, Game.date <= sunday)
             .all()
         )
 
-        teams = {t.team_id: t.abbrev for t in session.query(Team).all()}
-        game_counts = {}
+        teams_map = {t.team_id: t.abbrev for t in session.query(Team).all()}
 
+        # Build team -> list of booleans for each day
+        team_days: dict[str, list[bool]] = {}
         for g in games:
             for tid in [g.home_team_id, g.away_team_id]:
-                abbrev = teams.get(tid, "???")
-                if abbrev not in game_counts:
-                    game_counts[abbrev] = 0
-                game_counts[abbrev] += 1
+                abbrev = teams_map.get(tid, "???")
+                if abbrev not in team_days:
+                    team_days[abbrev] = [False] * 7
+                day_idx = (g.date - monday).days
+                if 0 <= day_idx < 7:
+                    team_days[abbrev][day_idx] = True
 
-        result = sorted(
-            [{"team": k, "games": v} for k, v in game_counts.items()],
-            key=lambda x: x["games"],
-            reverse=True,
-        )
+        result = []
+        for abbrev, days in team_days.items():
+            result.append({
+                "team": abbrev,
+                "games": sum(days),
+                "days": days,
+            })
 
-    return {"days": days, "start": str(today), "end": str(end), "teams": result}
+        result.sort(key=lambda x: x["games"], reverse=True)
+
+    return {
+        "week_start": str(monday),
+        "week_end": str(sunday),
+        "day_labels": day_labels,
+        "teams": result,
+    }
 
 
 @router.get("/regression")
-def regression_candidates(season: str = "20242025", min_gp: int = 20, limit: int = 10):
+def regression_candidates(
+    season: str = "20252026",
+    min_gp: int = 30,
+    limit: int = 10,
+):
     """Find buy-low and sell-high candidates based on shooting luck.
 
-    Buy low: players with low SH% relative to their ixG rate (unlucky).
-    Sell high: players with high SH% relative to their ixG rate (lucky).
+    Uses GameAdvancedStats (NHL API data) to compare actual goals vs
+    expected goals (ixG). Players outperforming their xG may regress
+    (sell-high), players underperforming may bounce back (buy-low).
+
+    Note: elite shooters sustainably beat xG — see
+    docs/shooting-talent-and-xg-limitations.md for caveats.
     """
     with get_session() as session:
-        # Get players with enough games
-        player_stats = (
-            session.query(
-                GameIndividualStats.nhl_id,
-                func.count().label("gp"),
-                func.avg(GameIndividualStats.goals_per_60).label("avg_goals"),
-                func.avg(GameIndividualStats.ixg_per_60).label("avg_ixg"),
-                func.avg(GameIndividualStats.sh_pct).label("avg_sh_pct"),
-                func.avg(GameIndividualStats.ipp).label("avg_ipp"),
-                func.avg(GameIndividualStats.shots_per_60).label("avg_shots"),
-                func.avg(GameIndividualStats.toi).label("avg_toi"),
-            )
-            .filter(
-                GameIndividualStats.season == season,
-                GameIndividualStats.situation == "all",
-            )
-            .group_by(GameIndividualStats.nhl_id)
-            .having(func.count() >= min_gp)
-            .all()
-        )
+        # Aggregate 5v5 stats per player for the season
+        start_year = int(season[:4])
+        start_gid = start_year * 1_000_000
+        end_gid = (start_year + 1) * 1_000_000
+
+        rows = session.execute(sa_text("""
+            SELECT gas.player_id,
+                   COUNT(DISTINCT gas.game_id) as gp,
+                   SUM(gas.goals) as goals,
+                   SUM(gas.ixg) as ixg,
+                   SUM(gas.shots) as shots,
+                   SUM(gas.toi_seconds) as toi
+            FROM game_advanced_stats gas
+            WHERE gas.situation = '5v5'
+                  AND gas.game_id >= :start AND gas.game_id < :end
+                  AND gas.toi_seconds > 0
+            GROUP BY gas.player_id
+            HAVING COUNT(DISTINCT gas.game_id) >= :min_gp
+        """), {"start": start_gid, "end": end_gid, "min_gp": min_gp}).fetchall()
 
         candidates = []
-        for ps in player_stats:
-            if ps.avg_ixg is None or ps.avg_goals is None or ps.avg_ixg == 0:
+        for r in rows:
+            player_id, gp, goals, ixg, shots, toi = r
+            if not ixg or ixg == 0 or not toi or toi < 600 * gp:
                 continue
 
-            # Goals above/below expected: positive = overperforming
-            goal_diff = ps.avg_goals - ps.avg_ixg
+            # Per-60 rates
+            goals_per_60 = goals / toi * 3600
+            ixg_per_60 = ixg / toi * 3600
+            goal_diff = goals_per_60 - ixg_per_60
+            sh_pct = goals / shots * 100 if shots > 0 else 0
 
-            player = session.query(Player).filter(Player.nhl_id == ps.nhl_id).first()
+            player = session.query(Player).filter(Player.nhl_id == player_id).first()
             if not player or player.position == "G":
                 continue
 
             team = session.query(Team).filter(Team.team_id == player.team_id).first()
 
             candidates.append({
-                "nhl_id": ps.nhl_id,
+                "nhl_id": player_id,
                 "name": player.full_name,
-                "position": player.position,
+                "position": player.yahoo_positions or player.position,
                 "team": team.abbrev if team else None,
-                "gp": ps.gp,
-                "goals_per_60": round(ps.avg_goals, 2),
-                "ixg_per_60": round(ps.avg_ixg, 2),
+                "gp": gp,
+                "goals_per_60": round(goals_per_60, 2),
+                "ixg_per_60": round(ixg_per_60, 2),
                 "goal_diff": round(goal_diff, 2),
-                "sh_pct": round(ps.avg_sh_pct, 1) if ps.avg_sh_pct else None,
-                "avg_toi": round(ps.avg_toi, 1) if ps.avg_toi else None,
+                "sh_pct": round(sh_pct, 1),
+                "avg_toi": round(toi / gp / 60, 1),
             })
 
-        # Sort by goal_diff
         buy_low = sorted(candidates, key=lambda x: x["goal_diff"])[:limit]
         sell_high = sorted(candidates, key=lambda x: x["goal_diff"], reverse=True)[:limit]
 
@@ -189,73 +217,90 @@ def regression_candidates(season: str = "20242025", min_gp: int = 20, limit: int
 
 
 @router.get("/optimal-adds")
-def optimal_adds(season: str = "20242025", min_gp: int = 20, limit: int = 50):
+def optimal_adds(season: str = "20252026", min_gp: int = 20, limit: int = 50):
     """Rank all skaters by projected fantasy points per game.
 
-    Computes FPTS/GP from actual season per-60 rates and TOI,
-    using the league's scoring weights. Higher = more valuable.
+    Uses GameAdvancedStats across all situations to compute FPTS/GP
+    with PP/SH bonuses. Higher = more valuable.
     """
     with get_session() as session:
-        player_stats = (
-            session.query(
-                GameIndividualStats.nhl_id,
-                func.count().label("gp"),
-                func.avg(GameIndividualStats.goals_per_60).label("avg_goals"),
-                func.avg(GameIndividualStats.total_assists_per_60).label("avg_assists"),
-                func.avg(GameIndividualStats.shots_per_60).label("avg_shots"),
-                func.avg(GameIndividualStats.hits_per_60).label("avg_hits"),
-                func.avg(GameIndividualStats.shots_blocked_per_60).label("avg_blocks"),
-                func.avg(GameIndividualStats.pim_per_60).label("avg_pim"),
-                func.avg(GameIndividualStats.toi).label("avg_toi"),
-                func.avg(GameIndividualStats.ixg_per_60).label("avg_ixg"),
-            )
-            .filter(
-                GameIndividualStats.season == season,
-                GameIndividualStats.situation == "all",
-            )
-            .group_by(GameIndividualStats.nhl_id)
-            .having(func.count() >= min_gp)
-            .all()
-        )
+        start_year = int(season[:4])
+        start_gid = start_year * 1_000_000
+        end_gid = (start_year + 1) * 1_000_000
+
+        rows = session.execute(sa_text("""
+            SELECT gas.player_id,
+                   COUNT(DISTINCT gas.game_id) as gp,
+                   SUM(CASE WHEN gas.situation = 'all' THEN gas.goals ELSE 0 END) as goals,
+                   SUM(CASE WHEN gas.situation = 'all' THEN gas.assists ELSE 0 END) as assists,
+                   SUM(CASE WHEN gas.situation = 'all' THEN gas.shots ELSE 0 END) as shots,
+                   SUM(CASE WHEN gas.situation = 'all' THEN gas.hits ELSE 0 END) as hits,
+                   SUM(CASE WHEN gas.situation = 'all' THEN gas.blocks ELSE 0 END) as blocks,
+                   SUM(CASE WHEN gas.situation = 'all' THEN gas.toi_seconds ELSE 0 END) as toi,
+                   SUM(CASE WHEN gas.situation = 'pp' THEN gas.goals ELSE 0 END) as pp_goals,
+                   SUM(CASE WHEN gas.situation = 'pp' THEN gas.assists ELSE 0 END) as pp_assists,
+                   SUM(CASE WHEN gas.situation = 'pk' THEN gas.goals ELSE 0 END) as sh_goals,
+                   SUM(CASE WHEN gas.situation = 'pk' THEN gas.assists ELSE 0 END) as sh_assists,
+                   SUM(CASE WHEN gas.situation = 'all' THEN gas.ixg ELSE 0 END) as ixg
+            FROM game_advanced_stats gas
+            WHERE gas.game_id >= :start AND gas.game_id < :end
+                  AND gas.toi_seconds > 0
+            GROUP BY gas.player_id
+            HAVING COUNT(DISTINCT gas.game_id) >= :min_gp
+        """), {"start": start_gid, "end": end_gid, "min_gp": min_gp}).fetchall()
+
+        from src.tools.forecasting.v2.projections import PP_GOAL_BONUS, PP_ASSIST_BONUS, SH_GOAL_BONUS, SH_ASSIST_BONUS
 
         results = []
-        for ps in player_stats:
-            if not ps.avg_toi or ps.avg_toi <= 0:
+        for r in rows:
+            (pid, gp, goals, assists, shots, hits, blocks, toi,
+             pp_g, pp_a, sh_g, sh_a, ixg) = r
+
+            if not gp or gp == 0:
                 continue
 
-            player = session.query(Player).filter(Player.nhl_id == ps.nhl_id).first()
+            player = session.query(Player).filter(Player.nhl_id == pid).first()
             if not player or player.position == "G":
                 continue
-
             team = session.query(Team).filter(Team.team_id == player.team_id).first()
 
-            toi_frac = ps.avg_toi / 60.0
-            fpts = 0.0
-            stat_breakdown = {}
+            # Per-game stats
+            gpg = goals / gp
+            apg = assists / gp
+            spg = shots / gp
+            hpg = hits / gp
+            bpg = blocks / gp
 
-            for col, cat, weight in [
-                (ps.avg_goals, "goals", SKATER_WEIGHTS["goals"]),
-                (ps.avg_assists, "assists", SKATER_WEIGHTS["assists"]),
-                (ps.avg_shots, "shots", SKATER_WEIGHTS["shots"]),
-                (ps.avg_hits, "hits", SKATER_WEIGHTS["hits"]),
-                (ps.avg_blocks, "blocks", SKATER_WEIGHTS["blocks"]),
-                (ps.avg_pim, "pim", SKATER_WEIGHTS["pim"]),
-            ]:
-                if col is not None:
-                    per_game = col * toi_frac
-                    pts = per_game * weight
-                    fpts += pts
-                    stat_breakdown[cat] = round(per_game, 2)
+            # Fantasy points with situation bonuses
+            fpts = (
+                gpg * SKATER_WEIGHTS["goals"]
+                + apg * SKATER_WEIGHTS["assists"]
+                + spg * SKATER_WEIGHTS["shots"]
+                + hpg * SKATER_WEIGHTS["hits"]
+                + bpg * SKATER_WEIGHTS["blocks"]
+                + (pp_g / gp) * PP_GOAL_BONUS
+                + (pp_a / gp) * PP_ASSIST_BONUS
+                + (sh_g / gp) * SH_GOAL_BONUS
+                + (sh_a / gp) * SH_ASSIST_BONUS
+            )
 
             results.append({
-                "nhl_id": ps.nhl_id,
+                "nhl_id": pid,
                 "name": player.full_name,
-                "position": player.position,
+                "position": player.yahoo_positions or player.position,
                 "team": team.abbrev if team else None,
-                "gp": ps.gp,
-                "avg_toi": round(ps.avg_toi, 1),
+                "gp": gp,
+                "avg_toi": round(toi / gp / 60, 1),
                 "fpts_per_gp": round(fpts, 2),
-                "stats_per_gp": stat_breakdown,
+                "stats_per_gp": {
+                    "goals": round(gpg, 2),
+                    "assists": round(apg, 2),
+                    "shots": round(spg, 2),
+                    "hits": round(hpg, 2),
+                    "blocks": round(bpg, 2),
+                    "pp_goals": round(pp_g / gp, 3),
+                    "pp_assists": round(pp_a / gp, 3),
+                },
             })
 
         results.sort(key=lambda x: x["fpts_per_gp"], reverse=True)

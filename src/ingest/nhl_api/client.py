@@ -119,6 +119,138 @@ def get_team_schedule(team_abbrev: str, season: str = "20252026") -> list[dict]:
     return games
 
 
+def get_game_play_by_play(game_id: int) -> list[dict]:
+    """
+    Fetch play-by-play events for a game.
+
+    Returns list of dicts, one per event. Each event has:
+      event_id, period, period_type, time_in_period, time_remaining,
+      event_type, situation_code, sort_order,
+      x_coord, y_coord, zone_code, shot_type,
+      player_1_id, player_2_id, team_id, detail
+    """
+    time.sleep(REQUEST_DELAY)
+    response = requests.get(f"{BASE_URL}/gamecenter/{game_id}/play-by-play")
+    response.raise_for_status()
+    data = response.json()
+
+    home_team_id = data.get("homeTeam", {}).get("id")
+    away_team_id = data.get("awayTeam", {}).get("id")
+
+    events = []
+    for play in data.get("plays", []):
+        details = play.get("details", {})
+        event_type = play.get("typeDescKey", "")
+
+        # Determine primary and secondary player based on event type
+        player_1_id = None
+        player_2_id = None
+
+        if event_type in ("shot-on-goal", "missed-shot"):
+            player_1_id = details.get("shootingPlayerId")
+            player_2_id = details.get("goalieInNetId")
+        elif event_type == "goal":
+            player_1_id = details.get("scoringPlayerId")
+            player_2_id = details.get("goalieInNetId")
+        elif event_type == "blocked-shot":
+            player_1_id = details.get("shootingPlayerId")
+            player_2_id = details.get("blockingPlayerId")
+        elif event_type == "hit":
+            player_1_id = details.get("hittingPlayerId")
+            player_2_id = details.get("hitteePlayerId")
+        elif event_type == "faceoff":
+            player_1_id = details.get("winningPlayerId")
+            player_2_id = details.get("losingPlayerId")
+        elif event_type in ("giveaway", "takeaway"):
+            player_1_id = details.get("playerId")
+        elif event_type == "penalty":
+            player_1_id = details.get("committedByPlayerId")
+            player_2_id = details.get("drawnByPlayerId")
+
+        period_desc = play.get("periodDescriptor", {})
+
+        events.append({
+            "event_id": play.get("eventId"),
+            "period": period_desc.get("number"),
+            "period_type": period_desc.get("periodType"),
+            "time_in_period": play.get("timeInPeriod"),
+            "time_remaining": play.get("timeRemaining"),
+            "event_type": event_type,
+            "situation_code": play.get("situationCode"),
+            "sort_order": play.get("sortOrder"),
+            "x_coord": details.get("xCoord"),
+            "y_coord": details.get("yCoord"),
+            "zone_code": details.get("zoneCode"),
+            "shot_type": details.get("shotType"),
+            "player_1_id": player_1_id,
+            "player_2_id": player_2_id,
+            "team_id": details.get("eventOwnerTeamId"),
+            "detail": details,
+        })
+
+    return events
+
+
+def get_game_shifts(game_id: int) -> list[dict]:
+    """
+    Fetch shift chart data for a game.
+
+    Returns list of dicts, one per shift. Each shift has:
+      player_id, shift_number, period, start_time, end_time, duration, team_id
+    """
+    time.sleep(REQUEST_DELAY)
+    url = f"{STATS_URL}/shiftcharts?cayenneExp=gameId={game_id}"
+    response = requests.get(url)
+    response.raise_for_status()
+    data = response.json()
+
+    shifts = []
+    for s in data.get("data", []):
+        # Skip non-shift entries (goals/events embedded in shift chart have
+        # shiftNumber=0 and null duration) and shifts with missing timing
+        if not s.get("shiftNumber") or not s.get("duration"):
+            continue
+        if not s.get("startTime") or not s.get("endTime"):
+            continue
+
+        shifts.append({
+            "player_id": s.get("playerId"),
+            "shift_number": s.get("shiftNumber"),
+            "period": s.get("period"),
+            "start_time": s.get("startTime"),
+            "end_time": s.get("endTime"),
+            "duration": s.get("duration"),
+            "team_id": s.get("teamId"),
+        })
+
+    return shifts
+
+
+def get_completed_games(date_str: str) -> list[int]:
+    """
+    Fetch game IDs for all completed games on a given date.
+
+    Args:
+        date_str: Date in YYYY-MM-DD format.
+
+    Returns list of game IDs (integers).
+    """
+    time.sleep(REQUEST_DELAY)
+    response = requests.get(f"{BASE_URL}/schedule/{date_str}")
+    response.raise_for_status()
+    data = response.json()
+
+    game_ids = []
+    for week in data.get("gameWeek", []):
+        if week.get("date") != date_str:
+            continue
+        for game in week.get("games", []):
+            if game.get("gameState") in ("FINAL", "OFF"):
+                game_ids.append(game["id"])
+
+    return game_ids
+
+
 def get_skaters_with_games(season: str = "20252026") -> list[dict]:
     """
     Fetch all skaters who have played at least one game in the season.
