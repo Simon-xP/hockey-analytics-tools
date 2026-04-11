@@ -164,7 +164,18 @@ def yahoo_trending(league_key: str, count: int = 20):
 
         players = list(all_players.values())
         players.sort(key=lambda p: abs(p.get("ownership_delta") or 0), reverse=True)
-        return {"players": players[:count]}
+        top = players[:count]
+
+        # Resolve Yahoo names to our nhl_ids
+        with get_session() as session:
+            for p in top:
+                try:
+                    nhl_id = resolve_player(session, name=p["name"])
+                    p["nhl_id"] = nhl_id
+                except Exception:
+                    p["nhl_id"] = None
+
+        return {"players": top}
     except Exception as e:
         return {"error": str(e)}
 

@@ -10,7 +10,9 @@ class Player(Base):
     full_name = Column(String(100), nullable=False)
     normalized_name = Column(String(100), index=True)  # For fast lookups
     team_id = Column(Integer, ForeignKey("teams.team_id"))
-    position = Column(String(5))  # "C", "LW", "RW", "D", "G"
+    position = Column(String(5))  # "C", "L", "R", "D", "G" (NHL codes)
+    yahoo_player_id = Column(Integer)  # Yahoo's player ID
+    yahoo_positions = Column(String(30))  # Yahoo positional eligibility: "C,LW"
 
     # Relationships
     team = relationship("Team", backref="players")
