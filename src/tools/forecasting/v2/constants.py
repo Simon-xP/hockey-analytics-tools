@@ -6,12 +6,24 @@ predicts and what features it uses.
 """
 
 # ======================================================================
-# EWMA half-lives (in games)
+# Rolling windows (non-overlapping, in games)
 # ======================================================================
-# Multiple decay rates let XGBoost pick the right one per stat.
-# Half-life of 3 captures hot streaks; 15 captures true talent.
-# Season average is also included (effectively infinite half-life).
-EWMA_HALF_LIVES = [3, 5, 10, 15]
+# Each window is a half-open slice [start, end) of games ordered
+# most-recent-first. Windows are disjoint so no game contributes to
+# multiple features, avoiding the recency double-counting that EWMA
+# with overlapping half-lives caused.
+#   L5:      games 0–4    (last week)
+#   L6_15:   games 5–14   (past month minus last week)
+#   L16_30:  games 15–29  (early-season / ~month before that)
+# Windows are large enough to keep per-60 rates stable; shorter
+# windows (e.g. L3) proved too noisy and caused XGBoost to over-fit.
+# Season average remains as the long-term anchor; prior_ and blended_
+# features handle cold-start when fewer than 30 games exist.
+ROLLING_WINDOWS = [
+    ("l5", 0, 5),
+    ("l6_15", 5, 15),
+    ("l16_30", 15, 30),
+]
 
 # ======================================================================
 # Situation configurations

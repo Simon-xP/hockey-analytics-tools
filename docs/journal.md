@@ -299,9 +299,195 @@ See [docs/schedule-optimizer.md](schedule-optimizer.md) for full requirements.
 
 ---
 
+## Entry N: Transaction Evaluator (Phase 1 of PuckAgent)
+
+**Date:** 2026-04-12
+
+### Goal
+
+Build the decision engine that answers "should I add this player?" Treat
+the forecast model as a black box input and focus on the infrastructure
+around it: slot-aware valuation, drop ranking, goalie streaming, weekly
+optimization under a 4-add constraint.
+
+### What was built
+
+Module: `src/tools/transactions/` (10 files, ~80KB):
+- `models.py` — `PlayerValue`, `TransactionCandidate`, `WeekPlan`, `AggressionLevel`, `ReplacementLevel`, `GoalieStreamScore`
+- `player_value.py` — slot-aware weekly FPTS projection (calls the v2 forecast per game) + live Yahoo roster loader
+- `replacement_level.py` — top-5 avg of FA pool per position group
+- `drop_ranker.py` — rank roster players by droppability (weekly value + position scarcity + upside bonus)
+- `weekly_optimizer.py` — transaction scoring + greedy forward search with look-ahead deferral
+- `goalie_eval.py` — derives goalie stats from `shot_attempts` (saves, GA, wins, shutouts), deterministic start prediction (starter vs committee vs backup, skips B2B second nights)
+- `upside.py` — shooting luck / TOI trend / process metrics (currently reads NST, needs port)
+- `desperation.py` — matchup context → `AggressionLevel` (shifts weekly vs ROS weighting)
+- `backtest.py` — walk-forward transaction simulator (coded but not run)
+- `__init__.py` — public API: `recommend()`, `evaluate_add()`, `load_roster_from_yahoo()`
+
+### Key design decisions
+
+**Forecast as black box.** The evaluator wraps the v2 situation-split
+model via `_default_forecast_fn(nhl_id, game_date, avg_toi) -> float`.
+This calls `extract_all_features`, predicts per-60 rates per situation
+(5v5/PP/PK/Other), predicts TOI per situation, then `project_per_game`
+combines into per-game fantasy points with PP/SH bonuses. The evaluator
+doesn't know about any of this internally — it just gets FPTS back.
+This keeps forecast iteration independent from evaluator iteration.
+
+**Slot-aware for adds, simple for drops.** When evaluating a free agent,
+we check if they'd actually make the active lineup on each game day
+(`analyze_week` + `assign_players_to_slots`) and only count games where
+they fit. When evaluating a rostered player for dropping, we use
+historical FPTS/GP × all games — because dropping frees a slot, so the
+full value is what's lost. If we used slot-aware logic for drops, a
+bench-blocked player would look like 0 value and we'd always drop them.
+
+**Goalies are deterministic, not probabilistic.** An earlier approach
+multiplied goalie FPTS by crease share, so a 67% starter got 67% of
+his output on every game. This was philosophically wrong — goalies
+either start or they don't. Replaced with `predict_starts()`: for each
+game this week, binary yes/no. Starters (≥60% crease share) play
+everything except B2B second nights. Committee/backup goalies are
+assumed to not start without explicit confirmation.
+
+**Goalie stats from shot_attempts.** No dedicated goalie game-stats
+table. Every shot has `goalie_id`, so we compute per-game saves (shots
+where `is_goal=false`), GA (`is_goal=true`), shots against (total), wins
+(from Game scores), shutouts (GA=0), and FPTS from `GOALIE_WEIGHTS`.
+Opponent softness is 60/40 blended with goalie's own rate.
+
+**Live Yahoo, no static config.** Earlier iteration used
+`config/roster.json`. Removed in favor of `load_roster_from_yahoo()`
+which calls `get_my_team()` live. Filters out IR/NA players.
+
+**Rookies deferred.** Players with no significant historical data
+return 0 projections. We don't draft rookies in this league anyway.
+Later work: add prospect handling (projected TOI ramp-up, comparable-
+player matching).
+
+### Loose ends
+
+- End-to-end `recommend()` validation blocked on Yahoo FA endpoint
+  returning retired/NA players (separate workstream)
+- Upside model reads `GameIndividualStats` (NST, no 2025-26 data),
+  needs port to `GameAdvancedStats`
+- Desperation metric untested — needs opponent roster projection
+- Backtest never run — needs historical roster snapshots
+- Goalies not yet wired into `recommend()` candidate pool (framework
+  exists, just needs the plumbing)
+- `compute_position_scarcity` over-penalizes tight-but-covered positions
+
+### Iterations that happened during testing
+
+1. **Goalies getting absurd numbers** from skater forecast — added
+   `player_type == GOALIE` early return in both valuation paths.
+2. **Drop ranking showing M.Tkachuk at 0 weekly FPTS** because he was
+   slot-blocked on all game days. Fix: drop ranker uses simple (non-slot-
+   aware) valuation.
+3. **Drop ranking using 2024-25 data** because `compute_fpts_per_gp`
+   only read NST. Ported to use `GameAdvancedStats` first for 2025-26,
+   with NST fallback for older seasons.
+4. **V2 forecast hallucinating huge numbers for retired players**
+   (Suter 37, Vlasic 33, Pacioretty 31). Fixed upstream in the v2 model
+   — now returns 0 or sensible small numbers for sparse-data players.
+5. **Goalie probabilistic discount was wrong** — replaced with binary
+   start prediction based on crease share + B2B detection.
+
+## Entry 10: Forecasting v2 — Non-overlapping Windows + 5-season Retrain
+
+**Date:** 2026-04-15
+
+### Problem
+
+Top-tier skaters (MacKinnon, Kucherov, Pastrnak, Kaprizov, McDavid) were
+systematically projected 2–3 fpts **above** their season averages for
+single-game forecasts, which inflated add/drop recommendations for hot
+streakers and flagged elites as must-haves even when they were cold.
+
+Root cause: rolling features used overlapping EWMA half-lives (5/10/15
+games), so the last 5 games contributed to all three windows. XGBoost
+latched onto recent form and compounded it across features.
+
+### Changes
+
+1. **Non-overlapping rolling windows.** Replaced EWMA half-lives with
+   disjoint windows `L5` (games 0–4), `L6_15` (5–14), `L16_30` (15–29).
+   Each game contributes to exactly one window. Season average remains
+   as the long-term anchor; `prior_*` / `blended_*` handle cold-start.
+   See `src/tools/forecasting/v2/constants.py:ROLLING_WINDOWS`.
+
+2. **5v5 Empirical Bayes blend for goals/assists.** Extended
+   `blend_xgb_with_eb` with an `only_stats` parameter so 5v5 goals and
+   assists get credibility-weighted toward a prior, but hits/blocks/shots
+   stay pure XGB. Cuts variance for players with sparse 5v5 scoring
+   samples without affecting the high-volume stats.
+
+3. **5-season retrain.** Ingested 2021–22 (the only missing
+   post-COVID season) and retrained 5v5 + PP on
+   `20212022 / 20222023 / 20232024 / 20242025 / 20252026`. 5v5 went from
+   38k → 221k training samples, PP from 20k → 128k.
+
+### Results
+
+Star comparison (projection vs season avg, 2026-04-15):
+
+| Player    | Before | After |
+|-----------|--------|-------|
+| McDavid   | +2.76  | +1.23 |
+| MacKinnon | +1.94  | -0.84 |
+| Kucherov  | +1.58  | -1.14 |
+| Pastrnak  | +1.22  | -0.31 |
+| Kaprizov  | +1.40  | -0.32 |
+
+Upward bias on elites is gone. Most stars now sit slightly below season
+average (expected: season avg includes peak games, single-game projection
+regresses toward true talent). No calibration pass needed.
+
+Feature importance on the 5-season model leans much harder on stable
+signals: `is_forward` (0.457), `ipp_regressed`, `blended_goals`,
+`blended_shots`, `season_avg_*`. Recent-window features still appear
+but no longer dominate.
+
+### No data leakage
+
+Verified `load_player_game_stats` uses `g.date < :before_date` — strict
+prior-games-only filter. Walk-forward training extracts features at each
+historical date using only games before that date. Season-level
+aggregates (`season_avg_*`, `prior_*`) are computed game-by-game, not
+from end-of-season totals.
+
+### How to use
+
+Same public API — the change is transparent to callers:
+
+```python
+from src.tools.forecasting.v2.forecast import load_models, forecast_player
+from src.tools.forecasting.v2.toi_model import TOIPredictor
+from src.tools.forecasting.v2.empirical_bayes import EmpiricalBayesPredictor
+
+models = load_models()
+toi = TOIPredictor()
+eb_pp = EmpiricalBayesPredictor("pp", ["goals", "assists", "shots"])
+eb_pk = EmpiricalBayesPredictor("pk", ["goals", "assists"])
+eb_5v5 = EmpiricalBayesPredictor("5v5", ["goals", "assists"])  # NEW
+
+proj = forecast_player(
+    session, nhl_id, game_date,
+    models=models, toi_predictor=toi,
+    eb_pp=eb_pp, eb_pk=eb_pk, eb_5v5=eb_5v5,  # eb_5v5 is new
+)
+# proj["fpts"] — single-game fantasy point projection
+```
+
+Transaction evaluator already calls this through `_default_forecast_fn`
+so no changes needed downstream — just retraining the model propagates
+the improvement.
+
 ## Lessons Learned
 
 1. **Entity resolution is foundational** - Get this right first, everything else becomes easier
 2. **Separate by domain, not by file type** - Keep related code together (scraper + config + docs per source)
 3. **Use canonical IDs from authoritative sources** - NHL's player IDs are stable; don't invent your own
 4. **Normalize early, match consistently** - All name comparisons go through the same normalization
+5. **Test infrastructure against real data early** - Several design issues (goalies in skater pipeline, slot-aware drops, probabilistic goalies) only surfaced when running against the actual roster.
+6. **Keep the forecast model and the decision engine independent** - Letting them iterate on different timelines means each can be improved without rewriting the other.

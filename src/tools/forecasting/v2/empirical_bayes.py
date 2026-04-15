@@ -196,6 +196,58 @@ def estimate_player_rate(
     return (shrunk_rate, z)
 
 
+def blend_xgb_with_eb(
+    xgb_rates: dict[str, float],
+    eb_rates: dict[str, float],
+    max_xgb_weight: float = 0.6,
+    only_stats: list[str] | None = None,
+) -> dict[str, float]:
+    """Blend XGBoost per-60 predictions with empirical Bayes shrinkage.
+
+    XGBoost can make extreme predictions for high-variance stats (notably
+    PP assists for stars, where it doubles season rates). EB gives a stable
+    credibility-weighted baseline that's the player's individual rate
+    shrunk toward the population mean.
+
+    Blend weight scales with EB credibility (Z), so:
+    - Players with lots of evidence in the situation let XGBoost contribute
+      up to max_xgb_weight of the final rate (XGBoost still informed by
+      matchup, recent form, opponent quality, etc.)
+    - Players with little evidence lean heavily on the EB rate (which
+      is close to the population mean for them anyway)
+
+    Always keeps at least (1 - max_xgb_weight) of the EB signal, acting
+    as a regularizer that pulls XGBoost back from pathological extremes.
+
+    Args:
+        xgb_rates: dict of "{stat}_per60" -> float from the XGBoost model.
+        eb_rates: dict of "{stat}_per60" and "{stat}_credibility" -> float
+            from EmpiricalBayesPredictor.
+        max_xgb_weight: Maximum weight XGBoost can receive. 0.6 means
+            EB is always at least 40% of the final prediction.
+
+    Returns:
+        Blended dict of "{stat}_per60" -> float.
+    """
+    blended = {}
+    for key, xgb_val in xgb_rates.items():
+        if not key.endswith("_per60"):
+            blended[key] = xgb_val
+            continue
+        stat = key[:-len("_per60")]
+        if only_stats is not None and stat not in only_stats:
+            blended[key] = xgb_val
+            continue
+        eb_val = eb_rates.get(f"{stat}_per60")
+        if eb_val is None:
+            blended[key] = xgb_val
+            continue
+        credibility = eb_rates.get(f"{stat}_credibility", 0.0)
+        xgb_weight = max_xgb_weight * credibility
+        blended[key] = xgb_weight * xgb_val + (1.0 - xgb_weight) * eb_val
+    return blended
+
+
 class EmpiricalBayesPredictor:
     """Predicts rare-event per-60 rates using empirical Bayes shrinkage.
 

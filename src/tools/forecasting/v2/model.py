@@ -248,12 +248,11 @@ class SituationModel:
                       f"mean count={mean_count:.3f}, mean TOI={mean_toi:.0f}s, "
                       f"implied rate/60={implied_rate:.3f}")
             else:
-                # Standard regression on per-60 rates.
-                # Weight by sqrt(TOI) for 5v5 where TOI varies a lot.
-                # Skip weighting for PP — high-PP-TOI games are biased
-                # toward high-scoring games and weighting makes it worse.
-                use_weights = self.situation not in ("pp",)
-                sample_weights = np.sqrt(toi) if use_weights else None
+                # Standard regression on per-60 rates, weighted by sqrt(TOI).
+                # PP needs weighting too: training set includes 4th-line cameos
+                # but evaluation/usage is on top-PP players, so unweighted training
+                # underpredicts. sqrt(TOI) shifts training toward the right pool.
+                sample_weights = np.sqrt(toi)
 
                 model = XGBRegressor(
                     n_estimators=300,

@@ -22,7 +22,7 @@ import numpy as np
 from sqlalchemy import text
 
 from src.tools.forecasting.v2.constants import (
-    EWMA_HALF_LIVES,
+    ROLLING_WINDOWS,
     INDIVIDUAL_RATE_STATS,
     ON_ICE_RATE_STATS,
     RATIO_STATS,
@@ -151,15 +151,22 @@ def load_player_game_stats(
 # Feature extractors
 # ======================================================================
 
-def extract_rolling_features(
-    games: list[dict],
-    half_lives: list[int] = EWMA_HALF_LIVES,
-) -> dict[str, float]:
-    """Extract EWMA features at multiple half-lives plus season average.
+def _window_mean(series: list[float], start: int, end: int) -> float:
+    """Mean of finite values in series[start:end]. NaN if no finite values."""
+    clean = [v for v in series[start:end] if np.isfinite(v)]
+    if not clean:
+        return float("nan")
+    return sum(clean) / len(clean)
+
+
+def extract_rolling_features(games: list[dict]) -> dict[str, float]:
+    """Extract non-overlapping rolling-window features plus season average.
+
+    Uses disjoint windows (see ROLLING_WINDOWS) so the most recent games
+    don't get multi-counted across multiple features.
 
     Args:
         games: Player's game stats, most-recent-first.
-        half_lives: EWMA half-lives to compute.
 
     Returns:
         Dict of feature_name -> value.
@@ -199,25 +206,25 @@ def extract_rolling_features(
     ]
 
     # Raw TOI (not per-60)
-    toi_series = [g["toi_seconds"] for g in games]
+    toi_series = [float(g["toi_seconds"]) for g in games]
 
-    # Compute EWMA at each half-life
-    for hl in half_lives:
-        prefix = f"ewma_{hl}"
-
+    # Non-overlapping window means
+    for prefix, start, end in ROLLING_WINDOWS:
         for stat, series in per_60_series.items():
-            clean = [v for v in series if np.isfinite(v)]
-            if clean:
-                features[f"{prefix}_{stat}"] = ewma(clean, hl)
+            val = _window_mean(series, start, end)
+            if np.isfinite(val):
+                features[f"{prefix}_{stat}"] = val
 
         for stat, series in ratio_series.items():
-            clean = [v for v in series if np.isfinite(v)]
-            if clean:
-                features[f"{prefix}_{stat}"] = ewma(clean, hl)
+            val = _window_mean(series, start, end)
+            if np.isfinite(val):
+                features[f"{prefix}_{stat}"] = val
 
-        features[f"{prefix}_toi"] = ewma(toi_series, hl)
+        toi_val = _window_mean(toi_series, start, end)
+        if np.isfinite(toi_val):
+            features[f"{prefix}_toi"] = toi_val
 
-    # Season averages (all prior games)
+    # Season averages (all prior games) — long-term anchor
     for stat, series in per_60_series.items():
         clean = [v for v in series if np.isfinite(v)]
         if clean:

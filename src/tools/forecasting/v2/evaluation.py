@@ -25,6 +25,7 @@ from src.tools.forecasting.v2.model import SituationModel
 from src.tools.forecasting.v2.toi_model import TOIPredictor
 from src.tools.forecasting.v2.projections import project_per_game, compute_actual_fpts
 from src.tools.forecasting.v2.empirical_bayes import EmpiricalBayesPredictor
+from src.tools.forecasting.v2.forecast import predict_situation_rates
 
 
 def backtest(
@@ -63,6 +64,9 @@ def backtest(
         return {}
 
     toi_predictor = TOIPredictor()
+    eb_pp = EmpiricalBayesPredictor("pp", ["goals", "assists", "shots"])
+    eb_pk = EmpiricalBayesPredictor("pk", ["goals", "assists"])
+    eb_5v5 = EmpiricalBayesPredictor("5v5", ["goals", "assists"])
 
     # Collect predictions
     # Each entry: (player_id, game_date, situation, stat, predicted_per60, actual_per60, actual_count, toi)
@@ -177,76 +181,14 @@ def backtest(
                     if gp_check < 10:
                         continue
 
-                    is_b2b_val = False
-
-                    # Set up empirical Bayes for PK scoring only
-                    eb_pk = EmpiricalBayesPredictor("pk", ["goals", "assists"])
-
-                    for situation in SITUATION_CONFIGS:
-                        config = SITUATION_CONFIGS[situation]
-
-                        # Predict TOI first (needed for Poisson models)
-                        sit_toi = toi_predictor.predict(
-                            session, player_id, situation, game_date,
-                            start_year, is_b2b_val,
-                        )
-                        predicted_toi[situation] = sit_toi
-
-                        if situation == "other":
-                            # Simple rolling average for Other situations.
-                            # Empirical Bayes was too conservative here.
-                            # Just use the player's historical per-60 rates.
-                            from src.tools.forecasting.v2.features import (
-                                load_player_game_stats, extract_rolling_features,
-                            )
-                            other_games = load_player_game_stats(
-                                session, player_id, "other_combined", game_date,
-                            )
-                            if other_games:
-                                rf = extract_rolling_features(other_games)
-                                rates = {
-                                    "goals_per60": rf.get("season_avg_goals", 0),
-                                    "assists_per60": rf.get("season_avg_first_assists", 0)
-                                                   + rf.get("season_avg_second_assists", 0),
-                                    "shots_per60": rf.get("season_avg_shots", 0),
-                                    "hits_per60": rf.get("season_avg_hits", 0),
-                                    "blocks_per60": rf.get("season_avg_blocks", 0),
-                                }
-                            else:
-                                rates = {}
-                            predicted_rates[situation] = rates
-
-                        elif situation == "pk":
-                            # Empirical Bayes for PK goals/assists
-                            eb_rates = eb_pk.predict(session, player_id, game_date)
-                            rates = {"goals_per60": eb_rates.get("goals_per60", 0),
-                                     "assists_per60": eb_rates.get("assists_per60", 0)}
-
-                            # XGBoost Poisson for PK shots/hits/blocks
-                            if situation in models:
-                                features = extract_all_features(
-                                    session, player_id, situation, game_date,
-                                    team_id, opp_team_id, home_team_id,
-                                    position, start_year,
-                                )
-                                is_b2b_val = features.get("is_b2b", 0) == 1.0
-                                poisson_rates = models[situation].predict(
-                                    features, toi_seconds=sit_toi,
-                                )
-                                rates.update(poisson_rates)
-
-                            predicted_rates[situation] = rates
-
-                        elif situation in models:
-                            # 5v5 and PP: standard XGBoost regression
-                            features = extract_all_features(
-                                session, player_id, situation, game_date,
-                                team_id, opp_team_id, home_team_id,
-                                position, start_year,
-                            )
-                            is_b2b_val = features.get("is_b2b", 0) == 1.0
-                            rates = models[situation].predict(features)
-                            predicted_rates[situation] = rates
+                    # Use the shared forecast path so backtest and live
+                    # forecasts stay in sync (includes PP EB blending).
+                    predicted_rates, predicted_toi = predict_situation_rates(
+                        session, player_id, game_date,
+                        team_id, opp_team_id, home_team_id,
+                        position, start_year,
+                        models, toi_predictor, eb_pp, eb_pk, eb_5v5,
+                    )
 
                     # Record per-60 predictions vs actuals for all situations
                     for situation in predicted_rates:

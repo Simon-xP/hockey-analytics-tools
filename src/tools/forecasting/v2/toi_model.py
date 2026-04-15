@@ -15,7 +15,6 @@ import numpy as np
 from src.tools.forecasting.v2.features import (
     load_player_game_stats,
     ewma,
-    EWMA_HALF_LIVES,
 )
 
 
@@ -63,13 +62,12 @@ class TOIPredictor:
         )
 
         if not games:
-            # No current season data — try prior season
-            prior_games = load_player_game_stats(
-                session, player_id, query_situation, game_date,
-            )
-            if not prior_games:
-                return 0.0
-            games = prior_games
+            # No current season data — return 0.
+            # A player with zero games this season is likely not on an
+            # NHL roster (injured, AHL, retired). Falling back to prior
+            # season data would produce misleading predictions for players
+            # like aging veterans who played last year but not this year.
+            return 0.0
 
         toi_values = [g["toi_seconds"] for g in games]
         predicted_toi = ewma(toi_values, self.default_half_life)
