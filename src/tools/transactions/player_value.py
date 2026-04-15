@@ -9,6 +9,7 @@ player can make the active lineup (not bench-blocked).
 """
 
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Callable, Optional
 
 from sqlalchemy import or_
@@ -153,6 +154,37 @@ def get_team_remaining_games(
     return count
 
 
+_FORECAST_CACHE: dict = {}
+
+
+def _get_forecast_deps():
+    """Lazily build and cache the v2 forecast dependencies.
+
+    `forecast_player` will build these on every call if not passed in,
+    which is expensive (model load + EB fitting). Build once per process
+    and reuse across all `_default_forecast_fn` invocations.
+    """
+    if _FORECAST_CACHE:
+        return _FORECAST_CACHE
+
+    from src.tools.forecasting.v2.forecast import load_models
+    from src.tools.forecasting.v2.toi_model import TOIPredictor
+    from src.tools.forecasting.v2.empirical_bayes import EmpiricalBayesPredictor
+
+    _FORECAST_CACHE["models"] = load_models()
+    _FORECAST_CACHE["toi"] = TOIPredictor()
+    _FORECAST_CACHE["eb_pp"] = EmpiricalBayesPredictor(
+        "pp", ["goals", "assists", "shots"]
+    )
+    _FORECAST_CACHE["eb_pk"] = EmpiricalBayesPredictor(
+        "pk", ["goals", "assists"]
+    )
+    _FORECAST_CACHE["eb_5v5"] = EmpiricalBayesPredictor(
+        "5v5", ["goals", "assists"]
+    )
+    return _FORECAST_CACHE
+
+
 def _default_forecast_fn(
     nhl_id: int,
     game_date: date,
@@ -160,110 +192,28 @@ def _default_forecast_fn(
 ) -> float:
     """Default forecast using the v2 situation-split model.
 
-    Runs the full pipeline: extract features → predict per-60 rates
-    by situation (5v5/PP/PK/Other) → predict TOI → combine into
-    per-game FPTS with PP/SH bonuses.
-
-    Returns projected fantasy points for one game.
+    Delegates to `forecast_player`, which is the canonical v2 path. This
+    ensures 5v5/PP/PK empirical Bayes blends all fire and any future
+    improvements to the forecast pipeline propagate automatically.
     """
-    from pathlib import Path
     from src.core.db import get_session
-    from src.core.models import Game, Player
-    from src.tools.forecasting.v2.model import SituationModel
-    from src.tools.forecasting.v2.toi_model import TOIPredictor
-    from src.tools.forecasting.v2.empirical_bayes import EmpiricalBayesPredictor
-    from src.tools.forecasting.v2.features import extract_all_features
-    from src.tools.forecasting.v2.projections import project_per_game
-    from src.tools.forecasting.v2.constants import SITUATION_CONFIGS
+    from src.tools.forecasting.v2.forecast import forecast_player
 
-    model_dir = Path("models/forecasting_v2")
-    if not model_dir.exists():
-        # No trained model — fall back to historical average
-        data = compute_fpts_per_gp.__wrapped__(nhl_id) if hasattr(compute_fpts_per_gp, '__wrapped__') else None
-        return avg_toi * 0.15  # rough fallback
+    if not Path("models/forecasting_v2").exists():
+        return avg_toi * 0.15  # rough fallback when no model is trained
 
+    deps = _get_forecast_deps()
     try:
         with get_session() as session:
-            player = session.query(Player).filter(Player.nhl_id == nhl_id).first()
-            if not player:
-                return 0.0
-
-            team_id = player.team_id
-            position = player.position or "C"
-
-            # Find the game on this date
-            game = (
-                session.query(Game)
-                .filter(
-                    Game.date == game_date,
-                    or_(
-                        Game.home_team_id == team_id,
-                        Game.away_team_id == team_id,
-                    ),
-                )
-                .first()
+            proj = forecast_player(
+                session, nhl_id, game_date,
+                models=deps["models"],
+                toi_predictor=deps["toi"],
+                eb_pp=deps["eb_pp"],
+                eb_pk=deps["eb_pk"],
+                eb_5v5=deps["eb_5v5"],
             )
-            if not game:
-                return 0.0
-
-            home_team_id = game.home_team_id
-            opp_team_id = (
-                game.away_team_id if team_id == game.home_team_id
-                else game.home_team_id
-            )
-
-            current_year = game_date.year if game_date.month >= 9 else game_date.year - 1
-
-            # Load situation models
-            models = {}
-            for sit in ["5v5", "pp", "pk"]:
-                path = model_dir / f"{sit}_model.pkl"
-                if path.exists():
-                    models[sit] = SituationModel.load(path)
-
-            toi_predictor = TOIPredictor()
-            eb_pk = EmpiricalBayesPredictor("pk", ["goals", "assists"])
-
-            predicted_rates = {}
-            predicted_toi = {}
-
-            for situation in SITUATION_CONFIGS:
-                toi = toi_predictor.predict(
-                    session, nhl_id, situation, game_date, current_year,
-                )
-                predicted_toi[situation] = toi
-
-                if situation == "other":
-                    predicted_rates[situation] = {
-                        "goals_per60": 2.38,
-                        "assists_per60": 3.06,
-                    }
-                elif situation == "pk":
-                    eb_rates = eb_pk.predict(session, nhl_id, game_date)
-                    rates = {
-                        "goals_per60": eb_rates.get("goals_per60", 0),
-                        "assists_per60": eb_rates.get("assists_per60", 0),
-                    }
-                    if "pk" in models:
-                        features = extract_all_features(
-                            session, nhl_id, "pk", game_date,
-                            team_id, opp_team_id, home_team_id,
-                            position, current_year,
-                        )
-                        poisson_rates = models["pk"].predict(features, toi_seconds=toi)
-                        rates.update(poisson_rates)
-                    predicted_rates[situation] = rates
-                elif situation in models:
-                    features = extract_all_features(
-                        session, nhl_id, situation, game_date,
-                        team_id, opp_team_id, home_team_id,
-                        position, current_year,
-                    )
-                    predicted_rates[situation] = models[situation].predict(features)
-
-            projected = project_per_game(predicted_rates, predicted_toi)
-            return projected.get("fpts", 0.0)
-
+            return proj.get("fpts", 0.0)
     except Exception:
         return 0.0
 
