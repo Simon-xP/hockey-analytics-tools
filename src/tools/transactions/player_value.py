@@ -580,6 +580,7 @@ def find_optimal_window_simple(
     max_window_days: int = 7,
     season: str = "20252026",
     as_of: Optional[date] = None,
+    skip_upside: bool = False,
 ) -> Optional[PlayerValue]:
     """Find optimal window using simple historical FPTS/GP (no forecasting).
 
@@ -629,6 +630,10 @@ def find_optimal_window_simple(
         )
 
     fpts_per_game = fpts_data["fpts_per_gp"]
+    upside = 0.0
+    if not skip_upside:
+        from src.tools.transactions.upside import compute_upside_score
+        upside = compute_upside_score(session, nhl_id, as_of=cutoff)
     best_value: Optional[PlayerValue] = None
     best_fpts = -1.0
 
@@ -675,6 +680,7 @@ def find_optimal_window_simple(
                 games_played=fpts_data["gp"],
                 ros_value=fpts_per_game * remaining_games,
                 game_projections=game_projections,
+                upside_score=upside,
             )
 
     return best_value
@@ -686,6 +692,7 @@ def compute_player_value_simple(
     yahoo_week: int,
     season: str = "20252026",
     as_of: Optional[date] = None,
+    skip_upside: bool = False,
 ) -> Optional[PlayerValue]:
     """Simplified player value without roster context.
 
@@ -734,6 +741,11 @@ def compute_player_value_simple(
     remaining_games = get_team_remaining_games(session, team.abbrev, from_date=as_of)
     ros_value = fpts_per_game * remaining_games
 
+    upside = 0.0
+    if not skip_upside:
+        from src.tools.transactions.upside import compute_upside_score
+        upside = compute_upside_score(session, nhl_id, as_of=as_of)
+
     # Determine window dates from games
     window_start = min(g.date for g in week_games) if week_games else None
     window_end = max(g.date for g in week_games) if week_games else None
@@ -756,4 +768,5 @@ def compute_player_value_simple(
         games_played=fpts_data["gp"],
         ros_value=ros_value,
         game_projections={g.date: fpts_per_game for g in week_games},
+        upside_score=upside,
     )

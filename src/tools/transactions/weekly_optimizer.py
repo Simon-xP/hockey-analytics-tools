@@ -25,6 +25,41 @@ from src.tools.transactions.models import (
 )
 
 
+_POOL_UPSIDE_TOP_PCT = 0.20
+_POOL_UPSIDE_BOTTOM_PCT = 0.20
+_POOL_UPSIDE_MAGNITUDE = 1.0
+
+
+def _apply_pool_relative_upside(pool: list[PlayerValue]) -> None:
+    """Rescale raw `upside_score` against the current FA pool distribution.
+
+    Raw upside is well-defined but small (~[-0.3, 0.3]), and most players
+    cluster near zero. Pool-relative scaling sharpens the signal:
+
+    - Top 20% of raw upsides → +0.30
+    - Bottom 20% → -0.30
+    - Middle 60% → 0.0
+
+    Mutates `upside_score` on each `PlayerValue` in place.
+    """
+    if len(pool) < 5:
+        return
+
+    scored = [(p, p.upside_score) for p in pool]
+    scored.sort(key=lambda t: t[1], reverse=True)
+    n = len(scored)
+    top_cutoff = max(1, int(n * _POOL_UPSIDE_TOP_PCT))
+    bottom_cutoff = max(1, int(n * _POOL_UPSIDE_BOTTOM_PCT))
+
+    for i, (player, _) in enumerate(scored):
+        if i < top_cutoff:
+            player.upside_score = _POOL_UPSIDE_MAGNITUDE
+        elif i >= n - bottom_cutoff:
+            player.upside_score = -_POOL_UPSIDE_MAGNITUDE
+        else:
+            player.upside_score = 0.0
+
+
 def score_transaction(
     add: PlayerValue,
     drop: PlayerValue,
@@ -298,6 +333,8 @@ def optimize_week(
     """
     if sim_date is None:
         sim_date = date.today()
+
+    _apply_pool_relative_upside(add_targets)
 
     # Opportunity cost: derive a min-score from the *initial* pool so the
     # bar reflects "what does this week's full FA market actually offer".

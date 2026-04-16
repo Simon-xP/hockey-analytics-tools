@@ -5,53 +5,67 @@ Returns a score in [-1.0, 1.0]:
     Negative = overperforming their talent (sell/regression risk)
     ~0 = performing as expected
 
-Uses GameIndividualStats (ixg_per_60, goals_per_60, toi) and
-GameOnIceStats (xgf_per_60, xga_per_60) — no reliance on missing
-GameAdvancedStats.
+Sources everything from `GameAdvancedStats` (joined to `Game` for the
+date filter). No dependency on the NST tables, which are only populated
+for 2023-24 / 2024-25 and would return zero for a 2025-26 backtest.
 
-This is explicitly a grey area that will be fine-tuned via backtesting.
+Every query respects `as_of: Optional[date]` with a strict-less-than
+cutoff (`Game.date < as_of`) so backtests don't leak future stats.
 """
+
+from datetime import date
+from typing import Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.core.models import GameIndividualStats, GameOnIceStats
+from src.core.models import Game, GameAdvancedStats
+
+
+SEASON_START_DEFAULT = date(2025, 10, 1)
+
+_RECENT_WINDOW = 10
+_MIN_GP = 15
 
 
 def compute_upside_score(
     session: Session,
     nhl_id: int,
-    season: str = "20252026",
-    situation: str = "all",
+    as_of: Optional[date] = None,
+    season_start: date = SEASON_START_DEFAULT,
 ) -> float:
-    """Estimate a player's upside.
+    """Estimate a player's upside in [-1.0, 1.0].
 
-    Components (each scaled to ~[-0.3, 0.3] and summed):
-    1. Shooting luck: goals vs ixG — goals << ixG = positive upside
-    2. TOI trend: recent TOI > season avg = coach trust increasing
-    3. Process vs results: high on-ice xGF% with low scoring = unlucky
-
-    Returns [-1.0, 1.0] clamped.
+    Components (each clamped to ~[-0.3, 0.3] and summed):
+    1. Shooting luck: current goals-over-expected vs player's own EB-shrunk career baseline
+    2. Process vs results: on-ice xGF% vs actual scoring
+    3. Deployment share: 5v5 and PP TOI share trends
     """
-    shooting = _shooting_luck_score(session, nhl_id, season, situation)
-    toi_trend = _toi_trend_score(session, nhl_id, season, situation)
-    process = _process_vs_results_score(session, nhl_id, season, situation)
+    shooting = _shooting_luck_score(session, nhl_id, as_of, season_start)
+    toi_trend = _toi_trend_score(session, nhl_id, as_of, season_start)
+    process = _process_vs_results_score(session, nhl_id, as_of, season_start)
+    deployment = _deployment_share_score(session, nhl_id, as_of, season_start)
 
-    total = shooting + toi_trend + process
+    total = shooting + toi_trend + process + deployment
     return max(-1.0, min(1.0, round(total, 3)))
 
 
 def compute_upside_breakdown(
     session: Session,
     nhl_id: int,
-    season: str = "20252026",
-    situation: str = "all",
+    as_of: Optional[date] = None,
+    season_start: date = SEASON_START_DEFAULT,
 ) -> dict[str, float]:
     """Return individual upside components for debugging/display."""
     return {
-        "shooting_luck": _shooting_luck_score(session, nhl_id, season, situation),
-        "toi_trend": _toi_trend_score(session, nhl_id, season, situation),
-        "process_vs_results": _process_vs_results_score(session, nhl_id, season, situation),
+        "shooting_luck": _shooting_luck_score(session, nhl_id, as_of, season_start),
+        "toi_trend": _toi_trend_score(session, nhl_id, as_of, season_start),
+        "process_vs_results": _process_vs_results_score(
+            session, nhl_id, as_of, season_start
+        ),
+        "deployment_share": _deployment_share_score(
+            session, nhl_id, as_of, season_start
+        ),
     }
 
 
@@ -62,25 +76,28 @@ def hold_patience_games(
     """How many games to hold an underperforming player with upside.
 
     Higher upside = more patience. Further below replacement = less patience.
-
-    Args:
-        upside_score: from compute_upside_score()
-        fpts_below_replacement: how far below replacement level (negative means above)
-
-    Returns:
-        Number of games to wait before dropping. 0 = drop now.
     """
     if upside_score <= 0:
-        return 0  # no upside, drop immediately if below replacement
+        return 0
 
-    # Base patience: 0.5 upside → 10 games, 1.0 upside → 20 games
     base_patience = int(upside_score * 20)
-
-    # Urgency: further below replacement → less patience
-    # 1.0 FPTS/GP below replacement → -5 games patience
     urgency = max(0, int(fpts_below_replacement * 5))
-
     return max(0, base_patience - urgency)
+
+
+# =========================================================================
+# Helpers
+# =========================================================================
+
+
+def _apply_cutoff(query, as_of: Optional[date], season_start: date):
+    """Join GameAdvancedStats to Game and apply the leakage-safe date window."""
+    query = query.join(Game, GameAdvancedStats.game_id == Game.game_id).filter(
+        Game.date >= season_start
+    )
+    if as_of is not None:
+        query = query.filter(Game.date < as_of)
+    return query
 
 
 # =========================================================================
@@ -91,194 +108,200 @@ def hold_patience_games(
 def _shooting_luck_score(
     session: Session,
     nhl_id: int,
-    season: str,
-    situation: str,
-    min_gp: int = 15,
+    as_of: Optional[date],
+    season_start: date,
 ) -> float:
-    """Compare actual goals to expected goals (ixG).
+    """Compare actual goals to expected goals (ixG) across all situations.
 
-    If goals << ixG, player is shooting below expected → positive upside
-    (regression up likely).
-    If goals >> ixG, they're overperforming → negative upside (sell signal).
+    goals << ixG → regression up likely (positive upside).
+    goals >> ixG → overperforming (negative upside).
 
-    Uses per-60 rates × TOI to get per-game counts, then compares.
+    Future improvement: EB-shrunk career shooting baseline so vets who
+    consistently over/underperform xG are judged against their personal
+    rate rather than the league prior. Requires deeper historical data
+    ingestion (pre-2021 seasons). See memory: project_upside_vision.md.
     """
-    stats = (
-        session.query(
-            func.count().label("gp"),
-            func.avg(GameIndividualStats.goals_per_60).label("avg_goals_per_60"),
-            func.avg(GameIndividualStats.ixg_per_60).label("avg_ixg_per_60"),
-            func.avg(GameIndividualStats.toi).label("avg_toi"),
-        )
-        .filter(
-            GameIndividualStats.nhl_id == nhl_id,
-            GameIndividualStats.season == season,
-            GameIndividualStats.situation == situation,
-        )
-        .first()
+    q = session.query(
+        func.count(GameAdvancedStats.id).label("gp"),
+        func.sum(GameAdvancedStats.goals).label("total_goals"),
+        func.sum(GameAdvancedStats.ixg).label("total_ixg"),
+    ).filter(
+        GameAdvancedStats.player_id == nhl_id,
+        GameAdvancedStats.situation == "all",
     )
+    stats = _apply_cutoff(q, as_of, season_start).first()
 
-    if (
-        not stats
-        or stats.gp < min_gp
-        or stats.avg_ixg_per_60 is None
-        or stats.avg_goals_per_60 is None
-        or stats.avg_toi is None
-        or stats.avg_toi <= 0
-    ):
+    if not stats or stats.gp is None or stats.gp < _MIN_GP:
+        return 0.0
+    if stats.total_ixg is None or stats.total_goals is None:
+        return 0.0
+    if stats.total_ixg <= 0:
         return 0.0
 
-    toi_frac = stats.avg_toi / 60.0
-    goals_per_game = stats.avg_goals_per_60 * toi_frac
-    ixg_per_game = stats.avg_ixg_per_60 * toi_frac
-
-    # goals_over_expected: negative means underperforming (positive upside)
+    goals_per_game = float(stats.total_goals) / stats.gp
+    ixg_per_game = float(stats.total_ixg) / stats.gp
     goals_over_expected = goals_per_game - ixg_per_game
 
-    # Scale: -0.15 goals/game below expected = +0.3 upside
+    # -0.15 goals/game below expected → +0.3 upside
     return max(-0.3, min(0.3, -goals_over_expected * 2.0))
 
 
 def _toi_trend_score(
     session: Session,
     nhl_id: int,
-    season: str,
-    situation: str,
-    recent_window: int = 10,
-    min_gp: int = 15,
+    as_of: Optional[date],
+    season_start: date,
 ) -> float:
-    """Compare recent TOI to season average.
+    """Recent TOI vs season avg (all situations).
 
-    Recent TOI > season avg = coach giving more trust (positive upside).
-    Recent TOI < season avg = losing ice time (negative upside).
+    Rising TOI = more opportunity to contribute (positive upside).
     """
-    # Season average TOI
-    season_avg = (
-        session.query(func.avg(GameIndividualStats.toi))
+    q = (
+        session.query(Game.date, GameAdvancedStats.toi_seconds)
         .filter(
-            GameIndividualStats.nhl_id == nhl_id,
-            GameIndividualStats.season == season,
-            GameIndividualStats.situation == situation,
+            GameAdvancedStats.player_id == nhl_id,
+            GameAdvancedStats.situation == "all",
+            GameAdvancedStats.toi_seconds.isnot(None),
         )
-        .scalar()
     )
+    rows = _apply_cutoff(q, as_of, season_start).order_by(Game.date.desc()).all()
 
-    if season_avg is None or season_avg <= 0:
+    if len(rows) < _MIN_GP or len(rows) < _RECENT_WINDOW:
         return 0.0
 
-    # Count total games
-    total_gp = (
-        session.query(func.count())
-        .filter(
-            GameIndividualStats.nhl_id == nhl_id,
-            GameIndividualStats.season == season,
-            GameIndividualStats.situation == situation,
-        )
-        .scalar()
-    )
-
-    if total_gp < min_gp:
+    toi_values = [float(r.toi_seconds) for r in rows]
+    season_avg = sum(toi_values) / len(toi_values)
+    if season_avg <= 0:
         return 0.0
 
-    # Recent window average TOI
-    recent_stats = (
-        session.query(GameIndividualStats.toi)
-        .filter(
-            GameIndividualStats.nhl_id == nhl_id,
-            GameIndividualStats.season == season,
-            GameIndividualStats.situation == situation,
-            GameIndividualStats.toi.isnot(None),
-        )
-        .order_by(GameIndividualStats.game_date.desc())
-        .limit(recent_window)
-        .all()
-    )
-
-    if len(recent_stats) < recent_window:
-        return 0.0
-
-    recent_avg = sum(r[0] for r in recent_stats) / len(recent_stats)
-
-    # Difference as fraction of season average
+    recent_avg = sum(toi_values[:_RECENT_WINDOW]) / _RECENT_WINDOW
     toi_diff_pct = (recent_avg - season_avg) / season_avg
 
-    # Scale: +10% TOI increase = +0.15 upside
+    # +10% TOI → +0.15 upside
     return max(-0.2, min(0.2, toi_diff_pct * 1.5))
 
 
 def _process_vs_results_score(
     session: Session,
     nhl_id: int,
-    season: str,
-    situation: str,
-    min_gp: int = 15,
+    as_of: Optional[date],
+    season_start: date,
 ) -> float:
-    """Compare on-ice process (xGF%) to actual results (goals).
+    """Compare on-ice xGF% (process) to points per game (results).
 
-    High xGF% with low actual scoring → unlucky, positive upside.
-    Low xGF% with high actual scoring → lucky, negative upside.
-
-    Uses GameOnIceStats for xGF% and GameIndividualStats for goals.
+    Strong process + weak results = unlucky, positive upside.
+    Weak process + strong results = regression risk.
     """
-    # Get on-ice xGF%
-    oi_stats = (
-        session.query(
-            func.count().label("gp"),
-            func.avg(GameOnIceStats.xgf_pct).label("avg_xgf_pct"),
-        )
-        .filter(
-            GameOnIceStats.nhl_id == nhl_id,
-            GameOnIceStats.season == season,
-            GameOnIceStats.situation == situation,
-        )
-        .first()
+    q = session.query(
+        func.count(GameAdvancedStats.id).label("gp"),
+        func.sum(GameAdvancedStats.xgf).label("total_xgf"),
+        func.sum(GameAdvancedStats.xga).label("total_xga"),
+        func.sum(GameAdvancedStats.goals).label("total_goals"),
+        func.sum(GameAdvancedStats.assists).label("total_assists"),
+    ).filter(
+        GameAdvancedStats.player_id == nhl_id,
+        GameAdvancedStats.situation == "5v5",
     )
+    stats = _apply_cutoff(q, as_of, season_start).first()
 
-    if not oi_stats or oi_stats.gp < min_gp or oi_stats.avg_xgf_pct is None:
+    if not stats or stats.gp is None or stats.gp < _MIN_GP:
+        return 0.0
+    xgf = float(stats.total_xgf or 0)
+    xga = float(stats.total_xga or 0)
+    if xgf + xga <= 0:
         return 0.0
 
-    # Get actual goal production (per-60)
-    ind_stats = (
-        session.query(
-            func.avg(GameIndividualStats.goals_per_60).label("avg_goals"),
-            func.avg(GameIndividualStats.total_assists_per_60).label("avg_assists"),
-            func.avg(GameIndividualStats.toi).label("avg_toi"),
-        )
-        .filter(
-            GameIndividualStats.nhl_id == nhl_id,
-            GameIndividualStats.season == season,
-            GameIndividualStats.situation == situation,
-        )
-        .first()
-    )
+    xgf_pct = xgf / (xgf + xga) * 100.0  # percentage, league avg ~50
+    xgf_quality = (xgf_pct - 50.0) / 100.0  # centered, range roughly [-0.3, 0.3]
 
-    if (
-        not ind_stats
-        or ind_stats.avg_goals is None
-        or ind_stats.avg_assists is None
-        or ind_stats.avg_toi is None
-        or ind_stats.avg_toi <= 0
-    ):
-        return 0.0
+    pts = float((stats.total_goals or 0) + (stats.total_assists or 0))
+    pts_per_game = pts / stats.gp
 
-    # xGF% indicates how much of the expected goal share goes the player's way
-    # League average xGF% is ~50%. Above 55% = strong process.
-    # If process is strong but points aren't coming, that's upside.
-    xgf_quality = (oi_stats.avg_xgf_pct - 50.0) / 100.0  # -0.5 to 0.5, centered at 0
-
-    # Points per game (proxy for "results")
-    toi_frac = ind_stats.avg_toi / 60.0
-    pts_per_game = (ind_stats.avg_goals + ind_stats.avg_assists) * toi_frac
-
-    # If xGF% is high but points are low relative to expected,
-    # there's a gap between process and results
-    # Use a simple heuristic: xGF quality signal, tempered by whether
-    # the player is actually underproducing
     if xgf_quality > 0 and pts_per_game < 0.5:
-        # Strong process, low results — upside
         return min(0.2, xgf_quality * 0.5)
-    elif xgf_quality < -0.05 and pts_per_game > 0.8:
-        # Weak process, high results — regression risk
+    if xgf_quality < -0.05 and pts_per_game > 0.8:
         return max(-0.2, xgf_quality * 0.5)
-
     return max(-0.15, min(0.15, xgf_quality * 0.3))
+
+
+def _deployment_share_score(
+    session: Session,
+    nhl_id: int,
+    as_of: Optional[date],
+    season_start: date,
+) -> float:
+    """Recent vs season 5v5 and PP deployment share.
+
+    Growing share of team ice time = coach trust rising (upside).
+    Computed as `player_toi / team_total_toi` per game, so game length
+    and OT don't bias the trend.
+    """
+    score = 0.0
+    score += _share_trend("5v5", session, nhl_id, as_of, season_start) * 0.15
+    score += _share_trend("pp", session, nhl_id, as_of, season_start) * 0.10
+    return max(-0.25, min(0.25, score))
+
+
+def _share_trend(
+    situation: str,
+    session: Session,
+    nhl_id: int,
+    as_of: Optional[date],
+    season_start: date,
+) -> float:
+    """Return (recent_share − season_share) / season_share for one situation.
+
+    Clamped loosely to [-1, 1]. Caller scales it into an upside contribution.
+    """
+    player_q = session.query(
+        Game.date.label("date"),
+        GameAdvancedStats.game_id.label("game_id"),
+        GameAdvancedStats.team_id.label("team_id"),
+        GameAdvancedStats.toi_seconds.label("player_toi"),
+    ).filter(
+        GameAdvancedStats.player_id == nhl_id,
+        GameAdvancedStats.situation == situation,
+        GameAdvancedStats.toi_seconds.isnot(None),
+    )
+    player_rows = _apply_cutoff(player_q, as_of, season_start).order_by(
+        Game.date.desc()
+    ).all()
+
+    if len(player_rows) < _MIN_GP or len(player_rows) < _RECENT_WINDOW:
+        return 0.0
+
+    game_team_pairs = [(r.game_id, r.team_id) for r in player_rows]
+    team_totals_q = session.query(
+        GameAdvancedStats.game_id,
+        GameAdvancedStats.team_id,
+        func.sum(GameAdvancedStats.toi_seconds).label("team_toi"),
+    ).filter(
+        GameAdvancedStats.situation == situation,
+    ).group_by(
+        GameAdvancedStats.game_id, GameAdvancedStats.team_id,
+    )
+    team_totals_q = team_totals_q.filter(
+        GameAdvancedStats.game_id.in_([gid for gid, _ in game_team_pairs]),
+    )
+    team_totals = {
+        (row.game_id, row.team_id): float(row.team_toi or 0)
+        for row in team_totals_q.all()
+    }
+
+    shares: list[float] = []
+    for row in player_rows:
+        team_toi = team_totals.get((row.game_id, row.team_id), 0.0)
+        if team_toi <= 0:
+            continue
+        shares.append(float(row.player_toi) / team_toi)
+
+    if len(shares) < _MIN_GP or len(shares) < _RECENT_WINDOW:
+        return 0.0
+
+    season_share = sum(shares) / len(shares)
+    if season_share <= 0:
+        return 0.0
+
+    recent_share = sum(shares[:_RECENT_WINDOW]) / _RECENT_WINDOW
+    delta_pct = (recent_share - season_share) / season_share
+    return max(-1.0, min(1.0, delta_pct))

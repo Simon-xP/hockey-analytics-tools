@@ -497,7 +497,7 @@ def compute_game_advanced_stats(
         else:
             st.ipp = None
 
-    return dict(stats)
+    return dict(stats), dict(player_team)
 
 
 # ======================================================================

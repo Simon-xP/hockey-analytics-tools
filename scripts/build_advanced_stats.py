@@ -65,7 +65,7 @@ def process_games(game_ids: list[int]) -> dict:
 
             try:
                 nested = session.begin_nested()
-                stats = compute_game_advanced_stats(
+                stats, player_team_map = compute_game_advanced_stats(
                     session, game_id,
                     home_team_id=info["home_team_id"],
                     away_team_id=info["away_team_id"],
@@ -78,27 +78,9 @@ def process_games(game_ids: list[int]) -> dict:
                     if st.toi_seconds <= 0 and situation != "all":
                         continue
 
-                    # Determine team from shift data
-                    # (player_team was internal to correlate, so we check via stats)
-                    # We need team_id — find it from the shifts
-                    team_id = None
+                    team_id = player_team_map.get(player_id)
                     opp_team_id = None
-                    # Check if this player's events reference a team
-                    for (pid2, sit2), st2 in stats.items():
-                        if pid2 == player_id and sit2 != "all" and st2.toi_seconds > 0:
-                            break
-
-                    # Simpler: query the shift data for this player
-                    team_row = session.execute(
-                        text(
-                            "SELECT DISTINCT team_id FROM player_shifts "
-                            "WHERE game_id = :gid AND player_id = :pid LIMIT 1"
-                        ),
-                        {"gid": game_id, "pid": player_id},
-                    ).fetchone()
-
-                    if team_row:
-                        team_id = team_row[0]
+                    if team_id:
                         opp_team_id = (
                             info["away_team_id"] if team_id == info["home_team_id"]
                             else info["home_team_id"]
