@@ -651,12 +651,12 @@ def extract_all_features(
         session, opponent_team_id, situation, game_date
     ))
 
-    # 6. Game context
+    # 7. Game context
     features.update(extract_game_context_features(
         session, player_id, team_id, game_date, home_team_id
     ))
 
-    # 7. Position
+    # 8. Position
     features.update(extract_position_features(position))
 
     return features

@@ -19,7 +19,9 @@ from sqlalchemy import text
 
 from src.core.db import get_session
 from src.core.models import Game, Player
-from src.tools.forecasting.v2.constants import SITUATION_CONFIGS, STAT_TARGETS
+from src.tools.forecasting.v2.constants import (
+    SITUATION_CONFIGS, STAT_TARGETS, feature_allowed_for_stat,
+)
 from src.tools.forecasting.v2.features import (
     extract_all_features,
     safe_per_60,
@@ -53,12 +55,11 @@ class SituationModel:
 
         Returns dict of stat_name -> predicted per-60 rate.
         """
-        vec = self._feature_vector(features)
         predictions = {}
 
         for stat, model in self.models.items():
+            vec = self._feature_vector(features, stat)
             if getattr(self, "_use_poisson", False):
-                # Poisson model: predict returns expected count for given exposure
                 import xgboost as xgb
                 if toi_seconds <= 0:
                     pred = 0.0
@@ -67,11 +68,9 @@ class SituationModel:
                     base_margin = np.log(np.array([toi_seconds / 3600]))
                     dmat.set_base_margin(base_margin)
                     pred_count = float(model.predict(dmat)[0])
-                    # Convert count back to per-60 rate
                     pred = pred_count / toi_seconds * 3600
             else:
                 pred = float(model.predict(vec)[0])
-                # Apply calibration if available
                 if stat in self.calibration:
                     scale, offset = self.calibration[stat]
                     pred = pred * scale + offset
@@ -113,16 +112,19 @@ class SituationModel:
             return {}
 
         # Re-project calibration features to match training feature columns.
-        # Calibration data may have discovered different features (e.g., more
-        # history available), so we align to the training columns.
         cal_col_idx = {name: i for i, name in enumerate(discovered_cols)}
         raw_X = np.array(X_rows, dtype=np.float32)
-        X_all = np.full((len(X_rows), len(self.feature_columns)), np.nan, dtype=np.float32)
-        for i, col in enumerate(self.feature_columns):
-            if col in cal_col_idx:
-                X_all[:, i] = raw_X[:, cal_col_idx[col]]
 
         for stat in stat_names:
+            stat_feature_cols = self._get_feature_columns(stat)
+            if not stat_feature_cols:
+                continue
+
+            X_cal = np.full((len(X_rows), len(stat_feature_cols)), np.nan, dtype=np.float32)
+            for i, col in enumerate(stat_feature_cols):
+                if col in cal_col_idx:
+                    X_cal[:, i] = raw_X[:, cal_col_idx[col]]
+
             target_col = STAT_TARGETS.get(stat, stat)
             y_vals = [y.get(target_col) for y in y_rows]
 
@@ -132,10 +134,9 @@ class SituationModel:
                 continue
 
             indices, targets = zip(*valid)
-            X = X_all[list(indices)]
+            X = X_cal[list(indices)]
             y_actual = np.array(targets, dtype=np.float32)
 
-            # Get raw predictions
             y_pred = self.models[stat].predict(X)
 
             # Fit linear calibration: y_actual ≈ scale * y_pred + offset
@@ -190,25 +191,36 @@ class SituationModel:
             print(f"  [{self.situation.upper()}] No training data.")
             return {}
 
-        self.feature_columns = feature_cols
+        all_feature_cols = feature_cols
         X_all = np.array(X_rows, dtype=np.float32)
 
         # Extract TOI for each sample (used for weighting and Poisson offset)
         toi_all = np.array([y.get("_toi_seconds", 600) for y in y_rows],
                            dtype=np.float32)
 
+        # Per-stat feature filtering
+        self.feature_columns = {}
+
         sample_counts = {}
         for stat in stat_names:
+            # Filter features for this stat
+            stat_col_mask = [
+                feature_allowed_for_stat(col, stat)
+                for col in all_feature_cols
+            ]
+            stat_cols = [c for c, m in zip(all_feature_cols, stat_col_mask) if m]
+            stat_col_indices = [i for i, m in enumerate(stat_col_mask) if m]
+            self.feature_columns[stat] = stat_cols
+
+            X_stat = X_all[:, stat_col_indices]
+
             target_col = STAT_TARGETS.get(stat, stat)
 
             if use_poisson:
-                # Poisson mode: target is raw count, TOI is exposure offset
                 y_vals = [y.get(f"_raw_{target_col}") for y in y_rows]
             else:
-                # Regression mode: target is per-60 rate
                 y_vals = [y.get(target_col) for y in y_rows]
 
-            # Build arrays, dropping rows where target is missing
             valid = [(i, y) for i, y in enumerate(y_vals)
                      if y is not None and np.isfinite(y)]
             if not valid:
@@ -216,7 +228,7 @@ class SituationModel:
                 continue
 
             indices, targets = zip(*valid)
-            X = X_all[list(indices)]
+            X = X_stat[list(indices)]
             y = np.array(targets, dtype=np.float32)
             toi = toi_all[list(indices)]
 
@@ -267,6 +279,7 @@ class SituationModel:
                 self.models[stat] = model
                 sample_counts[stat] = len(y)
                 print(f"    {stat}: trained on {len(y)} samples, "
+                      f"{len(stat_cols)} features, "
                       f"mean target={y.mean():.3f} (TOI-weighted)")
 
         return sample_counts
@@ -411,10 +424,17 @@ class SituationModel:
         print(f"    Extracted {len(X_rows)} training samples")
         return X_rows, y_rows, feature_columns or []
 
-    def _feature_vector(self, features: dict[str, float]) -> np.ndarray:
+    def _get_feature_columns(self, stat: str) -> list[str]:
+        """Get feature columns for a stat, handling both old and new formats."""
+        if isinstance(self.feature_columns, dict):
+            return self.feature_columns.get(stat, [])
+        return self.feature_columns
+
+    def _feature_vector(self, features: dict[str, float], stat: str = None) -> np.ndarray:
         """Convert a feature dict to a numpy array matching training columns."""
+        cols = self._get_feature_columns(stat) if stat else self.feature_columns
         vec = np.array(
-            [features.get(col, np.nan) for col in self.feature_columns],
+            [features.get(col, np.nan) for col in cols],
             dtype=np.float32,
         ).reshape(1, -1)
         vec[~np.isfinite(vec)] = np.nan
@@ -451,6 +471,7 @@ class SituationModel:
         if stat not in self.models:
             return []
         importances = self.models[stat].feature_importances_
-        pairs = list(zip(self.feature_columns, importances))
+        cols = self._get_feature_columns(stat)
+        pairs = list(zip(cols, importances))
         pairs.sort(key=lambda x: x[1], reverse=True)
         return pairs[:top_n]

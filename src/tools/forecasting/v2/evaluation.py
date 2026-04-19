@@ -55,7 +55,12 @@ def backtest(
         path = Path(model_dir) / f"{situation}_model.pkl"
         if path.exists():
             models[situation] = SituationModel.load(path)
-            print(f"  Loaded {situation} model ({len(models[situation].feature_columns)} features)")
+            fc = models[situation].feature_columns
+            if isinstance(fc, dict):
+                feat_info = ", ".join(f"{s}:{len(c)}" for s, c in fc.items())
+                print(f"  Loaded {situation} model ({feat_info})")
+            else:
+                print(f"  Loaded {situation} model ({len(fc)} features)")
         else:
             print(f"  Warning: no model for {situation} at {path}")
 

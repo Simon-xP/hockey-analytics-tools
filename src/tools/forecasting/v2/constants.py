@@ -136,3 +136,64 @@ STAT_TARGETS = {
     "hits": "hits",
     "blocks": "blocks",
 }
+
+# ======================================================================
+# Per-stat feature filters
+# ======================================================================
+# Substrings that a feature name must match (any one) to be included for
+# a given stat. Features matching none of the substrings are excluded.
+# Universal features (opponent, game context, position, TOI, GP) are
+# always included for every stat.
+#
+# This prevents cross-category noise (e.g. hits history predicting goals).
+
+_UNIVERSAL_FEATURES = {
+    "opp_", "is_home", "is_b2b", "days_rest", "is_forward", "is_center",
+    "season_gp", "prior_gp", "toi", "prior_toi",
+}
+
+STAT_FEATURE_FILTERS = {
+    "goals": {
+        "goals", "first_assists", "second_assists", "assists",
+        "shots", "ixg", "shot_attempts",
+        "cf", "ca", "xgf", "xga", "hdcf",
+        "cf_pct", "xgf_pct", "ozs_pct", "sh_pct",
+        "ipp",
+    },
+    "assists": {
+        "goals", "first_assists", "second_assists", "assists",
+        "shots", "ixg", "shot_attempts",
+        "hits",
+        "cf", "ca", "xgf", "xga", "hdcf",
+        "cf_pct", "xgf_pct", "ozs_pct",
+        "ipp",
+    },
+    "shots": {
+        "shots", "ixg", "shot_attempts",
+        "hits",
+        "cf", "ca", "xgf", "xga", "hdcf",
+        "cf_pct", "xgf_pct", "ozs_pct",
+    },
+    "hits": {
+        "hits",
+    },
+    "blocks": {
+        "blocks",
+        "cf", "ca", "xgf", "xga", "hdcf",
+        "cf_pct", "xgf_pct", "ozs_pct",
+    },
+}
+
+
+def feature_allowed_for_stat(feature_name: str, stat: str) -> bool:
+    """Check if a feature should be included for a given stat model."""
+    for u in _UNIVERSAL_FEATURES:
+        if u in feature_name:
+            return True
+    allowed = STAT_FEATURE_FILTERS.get(stat)
+    if allowed is None:
+        return True
+    for substr in allowed:
+        if substr in feature_name:
+            return True
+    return False
