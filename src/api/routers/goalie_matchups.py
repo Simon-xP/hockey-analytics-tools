@@ -1,7 +1,9 @@
 """Goalie matchup analysis — ranks teams by how goalie-friendly they are to stream against."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, case, and_
+
+from src.api.schemas import GoalieMatchupRankingsResponse, GoalieMatchupTeam
 
 from src.core.db import get_session
 from src.core.models import Game, Team
@@ -132,7 +134,7 @@ def _compute_team_goalie_scores(season_prefix: int = 2025) -> list[dict]:
     return results
 
 
-@router.get("/rankings")
+@router.get("/rankings", response_model=GoalieMatchupRankingsResponse)
 def goalie_matchup_rankings():
     """Get all teams ranked by how goalie-friendly they are to stream against.
 
@@ -146,13 +148,13 @@ def goalie_matchup_rankings():
     }
 
 
-@router.get("/team/{abbrev}")
+@router.get("/team/{abbrev}", response_model=GoalieMatchupTeam)
 def goalie_matchup_team(abbrev: str):
     """Get detailed goalie matchup data for a specific team."""
     rankings = _compute_team_goalie_scores()
     team = next((r for r in rankings if r["abbrev"].upper() == abbrev.upper()), None)
     if not team:
-        return {"error": "Team not found"}
+        raise HTTPException(status_code=404, detail="Team not found")
 
     team["rank"] = next(
         i + 1 for i, r in enumerate(rankings) if r["abbrev"] == team["abbrev"]

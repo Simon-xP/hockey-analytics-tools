@@ -5,6 +5,14 @@ from datetime import date, timedelta
 from fastapi import APIRouter
 from sqlalchemy import func
 
+from src.api.schemas import (
+    TodayGamesResponse,
+    StandingsResponse,
+    ScheduleOutlookResponse,
+    RegressionResponse,
+    OptimalAddsResponse,
+)
+
 from sqlalchemy import text as sa_text
 
 from src.core.db import get_session
@@ -14,10 +22,12 @@ from src.tools.fantasy.scoring import SKATER_WEIGHTS
 router = APIRouter()
 
 
-@router.get("/today")
+@router.get("/today", response_model=TodayGamesResponse)
 def today_games():
-    """Get today's games with team info."""
+    """Get today's games with team info, start time, and W-L records."""
     today = date.today()
+    # NHL season starts in early October; treat Oct 1 as season boundary
+    season_start = date(today.year, 10, 1) if today.month >= 10 else date(today.year - 1, 10, 1)
 
     with get_session() as session:
         games = (
@@ -26,6 +36,39 @@ def today_games():
             .all()
         )
 
+        # Compute W-L-OTL records for every team from completed games this season
+        completed = (
+            session.query(Game)
+            .filter(
+                Game.home_score.isnot(None),
+                Game.date < today,
+                Game.date >= season_start,
+            )
+            .all()
+        )
+        records: dict[int, dict] = {}
+
+        def _rec(tid: int) -> dict:
+            if tid not in records:
+                records[tid] = {"wins": 0, "losses": 0, "otl": 0}
+            return records[tid]
+
+        for cg in completed:
+            if cg.home_score is None or cg.away_score is None:
+                continue
+            h = _rec(cg.home_team_id)
+            a = _rec(cg.away_team_id)
+            if cg.home_score > cg.away_score:
+                h["wins"] += 1
+                a["losses"] += 1
+            else:
+                a["wins"] += 1
+                h["losses"] += 1
+
+        def _fmt(tid: int) -> str:
+            r = records.get(tid, {"wins": 0, "losses": 0, "otl": 0})
+            return f"{r['wins']}-{r['losses']}-{r['otl']}"
+
         result = []
         for g in games:
             home = session.query(Team).filter(Team.team_id == g.home_team_id).first()
@@ -33,8 +76,19 @@ def today_games():
             result.append({
                 "game_id": g.game_id,
                 "date": str(g.date),
-                "home_team": {"id": home.team_id, "abbrev": home.abbrev, "name": home.full_name} if home else None,
-                "away_team": {"id": away.team_id, "abbrev": away.abbrev, "name": away.full_name} if away else None,
+                "start_time_utc": g.start_time_utc.isoformat() if g.start_time_utc else None,
+                "home_team": {
+                    "id": home.team_id,
+                    "abbrev": home.abbrev,
+                    "name": home.full_name,
+                    "record": _fmt(home.team_id),
+                } if home else None,
+                "away_team": {
+                    "id": away.team_id,
+                    "abbrev": away.abbrev,
+                    "name": away.full_name,
+                    "record": _fmt(away.team_id),
+                } if away else None,
                 "home_score": g.home_score,
                 "away_score": g.away_score,
             })
@@ -42,7 +96,7 @@ def today_games():
     return {"date": str(today), "games": result}
 
 
-@router.get("/standings")
+@router.get("/standings", response_model=StandingsResponse)
 def standings():
     """Get current standings derived from game results."""
     with get_session() as session:
@@ -95,7 +149,7 @@ def standings():
     return {"standings": result}
 
 
-@router.get("/schedule-outlook")
+@router.get("/schedule-outlook", response_model=ScheduleOutlookResponse)
 def schedule_outlook():
     """Teams with the most games this fantasy week, with per-day breakdown."""
     today = date.today()
@@ -143,9 +197,9 @@ def schedule_outlook():
     }
 
 
-@router.get("/regression")
+@router.get("/regression", response_model=RegressionResponse)
 def regression_candidates(
-    season: str = "20252026",
+    season: str = "20242025",
     min_gp: int = 30,
     limit: int = 10,
 ):
@@ -216,7 +270,7 @@ def regression_candidates(
     return {"buy_low": buy_low, "sell_high": sell_high}
 
 
-@router.get("/optimal-adds")
+@router.get("/optimal-adds", response_model=OptimalAddsResponse)
 def optimal_adds(season: str = "20252026", min_gp: int = 20, limit: int = 50):
     """Rank all skaters by projected fantasy points per game.
 

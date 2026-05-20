@@ -2,8 +2,14 @@
 
 from datetime import date
 
-import requests
-from fastapi import APIRouter, Query
+import httpx
+from fastapi import APIRouter, HTTPException, Query
+
+from src.api.schemas import (
+    PlayerSearchResult,
+    PlayerDetailResponse,
+    ForecastResponse,
+)
 
 from src.core.db import get_session
 from src.core.models import Player, Team, GameIndividualStats, GameAdvancedStats, Game
@@ -11,7 +17,7 @@ from src.core.models import Player, Team, GameIndividualStats, GameAdvancedStats
 router = APIRouter()
 
 
-@router.get("/search")
+@router.get("/search", response_model=PlayerSearchResult)
 def search_players(q: str = Query(..., min_length=2)):
     """Search players by name."""
     with get_session() as session:
@@ -37,13 +43,13 @@ def search_players(q: str = Query(..., min_length=2)):
         }
 
 
-@router.get("/{nhl_id}")
-def get_player(nhl_id: int):
+@router.get("/{nhl_id}", response_model=PlayerDetailResponse)
+async def get_player(nhl_id: int):
     """Get player info with recent stats."""
     with get_session() as session:
         player = session.query(Player).filter(Player.nhl_id == nhl_id).first()
         if not player:
-            return {"error": "Player not found"}
+            raise HTTPException(status_code=404, detail="Player not found")
 
         # Recent game logs (last 10) from advanced stats
         from sqlalchemy import text
@@ -103,11 +109,12 @@ def get_player(nhl_id: int):
         # Fetch goalie stats from NHL API
         if is_goalie:
             try:
-                resp = requests.get(
-                    f"https://api-web.nhle.com/v1/player/{nhl_id}/landing",
-                    timeout=5,
-                )
-                if resp.ok:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(
+                        f"https://api-web.nhle.com/v1/player/{nhl_id}/landing",
+                        timeout=5,
+                    )
+                if resp.is_success:
                     nhl_data = resp.json()
                     season_stats = (
                         nhl_data.get("featuredStats", {})
@@ -146,7 +153,7 @@ def get_player(nhl_id: int):
         return result
 
 
-@router.get("/{nhl_id}/forecast")
+@router.get("/{nhl_id}/forecast", response_model=ForecastResponse)
 def get_forecast(nhl_id: int, game_date: str | None = None):
     """Get per-game stat projections using v2 situation-split model.
 
@@ -169,7 +176,7 @@ def get_forecast(nhl_id: int, game_date: str | None = None):
         with get_session() as session:
             player = session.query(Player).filter(Player.nhl_id == nhl_id).first()
             if not player:
-                return {"error": "Player not found"}
+                raise HTTPException(status_code=404, detail="Player not found")
 
             position = player.position or "C"
             team_id = player.team_id
@@ -187,7 +194,7 @@ def get_forecast(nhl_id: int, game_date: str | None = None):
             )
 
             if not game:
-                return {"error": "No upcoming game found"}
+                raise HTTPException(status_code=404, detail="No upcoming game found")
 
             home_team_id = game.home_team_id
             opp_team_id = (
@@ -289,4 +296,4 @@ def get_forecast(nhl_id: int, game_date: str | None = None):
             }
 
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))

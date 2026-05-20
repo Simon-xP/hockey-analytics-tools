@@ -2,9 +2,20 @@
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_
+
+from src.api.schemas import (
+    YahooStatusResponse,
+    YahooAuthUrlResponse,
+    YahooLeaguesResponse,
+    YahooStandingsResponse,
+    YahooFreeAgentsResponse,
+    YahooTrendingResponse,
+    YahooOptimalAddsResponse,
+    YahooRosterWeekResponse,
+)
 
 from src.core.db import get_session
 from src.core.models import Player, Team, Game, GameIndividualStats
@@ -30,13 +41,13 @@ from src.api.stats_helpers import compute_fpts_per_gp
 router = APIRouter()
 
 
-@router.get("/status")
+@router.get("/status", response_model=YahooStatusResponse)
 def yahoo_status():
     """Check if Yahoo is connected."""
     return {"connected": is_authenticated()}
 
 
-@router.get("/connect")
+@router.get("/connect", response_model=YahooAuthUrlResponse)
 def yahoo_connect():
     """Start OAuth flow — returns the Yahoo auth URL."""
     url = get_auth_url()
@@ -53,14 +64,14 @@ def yahoo_callback(code: str):
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/leagues")
+@router.get("/leagues", response_model=YahooLeaguesResponse)
 def yahoo_leagues():
     """Get user's NHL fantasy leagues."""
     try:
         leagues = get_user_leagues()
         return {"leagues": leagues}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/team/{league_key}")
@@ -70,27 +81,27 @@ def yahoo_team(league_key: str):
         team = get_my_team(league_key)
         return team
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/standings/{league_key}")
+@router.get("/standings/{league_key}", response_model=YahooStandingsResponse)
 def yahoo_standings(league_key: str):
     """Get league standings."""
     try:
         standings = get_league_standings(league_key)
         return {"standings": standings}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/free-agents/{league_key}")
+@router.get("/free-agents/{league_key}", response_model=YahooFreeAgentsResponse)
 def yahoo_free_agents(league_key: str, count: int = 25):
     """Get available free agents."""
     try:
         players = get_free_agents(league_key, count=count)
         return {"players": players}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/matchup/{league_key}")
@@ -100,67 +111,68 @@ def yahoo_matchup(league_key: str, week: int = None):
         matchup = get_matchup(league_key, week=week)
         return matchup
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/trending/{league_key}")
-def yahoo_trending(league_key: str, count: int = 20):
+@router.get("/trending/{league_key}", response_model=YahooTrendingResponse)
+async def yahoo_trending(league_key: str, count: int = 20):
     """Get trending players — all players sorted by magnitude of ownership change."""
     try:
         from src.ingest.yahoo.auth import get_access_token
-        import requests
+        import httpx
         import xml.etree.ElementTree as ET
 
         token = get_access_token()
         if not token:
-            return {"error": "Not authenticated"}
+            raise HTTPException(status_code=401, detail="Not authenticated")
 
         ns = {"yh": "http://fantasysports.yahooapis.com/fantasy/v2/base.rng"}
         all_players = {}
 
         # Paginate through all players (Yahoo returns 25 per page)
         start = 0
-        while True:
-            url = (
-                f"https://fantasysports.yahooapis.com/fantasy/v2"
-                f"/league/{league_key}/players"
-                f";status=ALL;out=percent_owned;start={start};count=25"
-            )
-            resp = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-            if resp.status_code != 200:
-                break
+        async with httpx.AsyncClient() as client:
+            while True:
+                url = (
+                    f"https://fantasysports.yahooapis.com/fantasy/v2"
+                    f"/league/{league_key}/players"
+                    f";status=ALL;out=percent_owned;start={start};count=25"
+                )
+                resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+                if resp.status_code != 200:
+                    break
 
-            root = ET.fromstring(resp.content)
-            page_players = list(root.iter(f"{{{ns['yh']}}}player"))
+                root = ET.fromstring(resp.content)
+                page_players = list(root.iter(f"{{{ns['yh']}}}player"))
 
-            if not page_players:
-                break
+                if not page_players:
+                    break
 
-            for player_el in page_players:
-                pk = player_el.findtext(f"yh:player_key", namespaces=ns)
+                for player_el in page_players:
+                    pk = player_el.findtext(f"yh:player_key", namespaces=ns)
 
-                pct_el = player_el.find(f"yh:percent_owned", ns)
-                pct_value = None
-                pct_delta = None
-                if pct_el is not None:
-                    val = pct_el.findtext(f"yh:value", namespaces=ns)
-                    delta = pct_el.findtext(f"yh:delta", namespaces=ns)
-                    pct_value = int(val) if val else None
-                    pct_delta = int(delta) if delta else None
+                    pct_el = player_el.find(f"yh:percent_owned", ns)
+                    pct_value = None
+                    pct_delta = None
+                    if pct_el is not None:
+                        val = pct_el.findtext(f"yh:value", namespaces=ns)
+                        delta = pct_el.findtext(f"yh:delta", namespaces=ns)
+                        pct_value = int(val) if val else None
+                        pct_delta = int(delta) if delta else None
 
-                name_el = player_el.find(f"yh:name", ns)
-                all_players[pk] = {
-                    "player_key": pk,
-                    "player_id": player_el.findtext(f"yh:player_id", namespaces=ns),
-                    "name": name_el.findtext(f"yh:full", namespaces=ns) if name_el is not None else None,
-                    "team": player_el.findtext(f"yh:editorial_team_abbr", namespaces=ns),
-                    "position": player_el.findtext(f"yh:display_position", namespaces=ns),
-                    "status": player_el.findtext(f"yh:status", namespaces=ns),
-                    "percent_owned": pct_value,
-                    "ownership_delta": pct_delta,
-                }
+                    name_el = player_el.find(f"yh:name", ns)
+                    all_players[pk] = {
+                        "player_key": pk,
+                        "player_id": player_el.findtext(f"yh:player_id", namespaces=ns),
+                        "name": name_el.findtext(f"yh:full", namespaces=ns) if name_el is not None else None,
+                        "team": player_el.findtext(f"yh:editorial_team_abbr", namespaces=ns),
+                        "position": player_el.findtext(f"yh:display_position", namespaces=ns),
+                        "status": player_el.findtext(f"yh:status", namespaces=ns),
+                        "percent_owned": pct_value,
+                        "ownership_delta": pct_delta,
+                    }
 
-            start += 25
+                start += 25
 
         players = list(all_players.values())
         players.sort(key=lambda p: abs(p.get("ownership_delta") or 0), reverse=True)
@@ -177,20 +189,20 @@ def yahoo_trending(league_key: str, count: int = 20):
 
         return {"players": top}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/optimal-adds/{league_key}")
-def yahoo_optimal_adds(league_key: str, count: int = 50, season: str = "20242025", min_gp: int = 15):
+@router.get("/optimal-adds/{league_key}", response_model=YahooOptimalAddsResponse)
+def yahoo_optimal_adds(league_key: str, count: int = 50, season: str = "20252026", min_gp: int = 10):
     """Get free agents ranked by projected fantasy points per game.
 
-    Fetches free agents from Yahoo, matches to our DB by name,
-    computes FPTS/GP from their season stats using shared helper.
+    Fetches 200 free agents from Yahoo (sorted by average rank),
+    matches to our DB, computes FPTS/GP, returns the top N.
     """
     try:
-        fa_players = get_free_agents(league_key, count=count)
+        fa_players = get_free_agents(league_key, count=200)
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
     results = []
 
@@ -226,7 +238,7 @@ def yahoo_optimal_adds(league_key: str, count: int = 50, season: str = "20242025
     return {"players": results}
 
 
-@router.get("/roster-week/{league_key}")
+@router.get("/roster-week/{league_key}", response_model=YahooRosterWeekResponse)
 def yahoo_roster_week(league_key: str, season: str = "20242025"):
     """Get roster with this week's game schedule, slot analysis, and projections.
 
@@ -241,10 +253,10 @@ def yahoo_roster_week(league_key: str, season: str = "20242025"):
     try:
         yahoo_team = get_my_team(league_key)
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
     if not yahoo_team:
-        return {"error": "Could not find your team"}
+        raise HTTPException(status_code=404, detail="Could not find your team")
 
     yahoo_roster = yahoo_team.get("roster", [])
 
