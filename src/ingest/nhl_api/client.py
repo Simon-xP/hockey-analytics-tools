@@ -1,4 +1,4 @@
-import requests
+import httpx
 import time
 
 BASE_URL = "https://api-web.nhle.com/v1"
@@ -8,7 +8,7 @@ REQUEST_DELAY = 0.5  # seconds between requests to avoid rate limiting
 
 def get_standings() -> dict:
     """Fetch current standings (includes all teams)."""
-    response = requests.get(f"{BASE_URL}/standings/now")
+    response = httpx.get(f"{BASE_URL}/standings/now")
     response.raise_for_status()
     return response.json()
 
@@ -19,7 +19,7 @@ def get_team_roster(team_abbrev: str, season: str = "20252026") -> dict:
 
     Uses season roster endpoint to include IR/LTIR players, not just active roster.
     """
-    response = requests.get(f"{BASE_URL}/roster/{team_abbrev}/{season}")
+    response = httpx.get(f"{BASE_URL}/roster/{team_abbrev}/{season}")
     response.raise_for_status()
     return response.json()
 
@@ -31,7 +31,7 @@ def get_all_teams() -> list[dict]:
     Returns list of dicts with: team_id, abbrev, full_name, short_name
     """
     # Get team IDs from stats API
-    response = requests.get(f"{STATS_URL}/team")
+    response = httpx.get(f"{STATS_URL}/team")
     response.raise_for_status()
     all_teams = {t["triCode"]: t for t in response.json()["data"]}
 
@@ -67,7 +67,7 @@ def get_all_players() -> list[dict]:
         time.sleep(REQUEST_DELAY)
         try:
             roster = get_team_roster(abbrev)
-        except requests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             print(f"Warning: Could not fetch roster for {abbrev}: {e}")
             continue
 
@@ -92,7 +92,7 @@ def get_team_schedule(team_abbrev: str, season: str = "20252026") -> list[dict]:
     Each dict has: game_id, game_date, home_team_id, away_team_id,
                    home_abbrev, away_abbrev, home_score, away_score
     """
-    response = requests.get(f"{BASE_URL}/club-schedule-season/{team_abbrev}/{season}")
+    response = httpx.get(f"{BASE_URL}/club-schedule-season/{team_abbrev}/{season}")
     response.raise_for_status()
     data = response.json()
 
@@ -130,7 +130,7 @@ def get_game_play_by_play(game_id: int) -> list[dict]:
       player_1_id, player_2_id, team_id, detail
     """
     time.sleep(REQUEST_DELAY)
-    response = requests.get(f"{BASE_URL}/gamecenter/{game_id}/play-by-play")
+    response = httpx.get(f"{BASE_URL}/gamecenter/{game_id}/play-by-play")
     response.raise_for_status()
     data = response.json()
 
@@ -191,16 +191,28 @@ def get_game_play_by_play(game_id: int) -> list[dict]:
     return events
 
 
+def get_game_boxscore(game_id: int) -> dict:
+    """Fetch boxscore JSON for a game (used to map sweater -> player_id)."""
+    time.sleep(REQUEST_DELAY)
+    response = httpx.get(f"{BASE_URL}/gamecenter/{game_id}/boxscore")
+    response.raise_for_status()
+    return response.json()
+
+
 def get_game_shifts(game_id: int) -> list[dict]:
     """
     Fetch shift chart data for a game.
 
     Returns list of dicts, one per shift. Each shift has:
       player_id, shift_number, period, start_time, end_time, duration, team_id
+
+    The NHL stats `shiftcharts` endpoint randomly returns empty data for
+    ~38% of recent games. When that happens, fall back to parsing the
+    official HTML shift reports.
     """
     time.sleep(REQUEST_DELAY)
     url = f"{STATS_URL}/shiftcharts?cayenneExp=gameId={game_id}"
-    response = requests.get(url)
+    response = httpx.get(url)
     response.raise_for_status()
     data = response.json()
 
@@ -223,6 +235,10 @@ def get_game_shifts(game_id: int) -> list[dict]:
             "team_id": s.get("teamId"),
         })
 
+    if not shifts:
+        from src.ingest.nhl_api.html_shifts import get_game_shifts_from_html
+        shifts = get_game_shifts_from_html(game_id)
+
     return shifts
 
 
@@ -236,7 +252,7 @@ def get_completed_games(date_str: str) -> list[int]:
     Returns list of game IDs (integers).
     """
     time.sleep(REQUEST_DELAY)
-    response = requests.get(f"{BASE_URL}/schedule/{date_str}")
+    response = httpx.get(f"{BASE_URL}/schedule/{date_str}")
     response.raise_for_status()
     data = response.json()
 
@@ -259,7 +275,7 @@ def get_skaters_with_games(season: str = "20252026") -> list[dict]:
     Returns list of dicts with: nhl_id, full_name, team_abbrev, position
     """
     url = f"{STATS_URL}/skater/summary?cayenneExp=seasonId={season}%20and%20gameTypeId=2&limit=-1"
-    response = requests.get(url)
+    response = httpx.get(url)
     response.raise_for_status()
     data = response.json()
 

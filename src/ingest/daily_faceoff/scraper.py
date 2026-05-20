@@ -17,7 +17,7 @@ import re
 import time
 from datetime import date
 
-import requests
+import httpx
 
 BASE_URL = "https://www.dailyfaceoff.com"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
@@ -41,7 +41,7 @@ TEAM_SLUGS = [
 
 def _fetch_next_data(url: str) -> dict | None:
     """Fetch a Daily Faceoff page and extract the __NEXT_DATA__ JSON."""
-    resp = requests.get(url, headers={"User-Agent": USER_AGENT})
+    resp = httpx.get(url, headers={"User-Agent": USER_AGENT})
     if resp.status_code != 200:
         return None
 

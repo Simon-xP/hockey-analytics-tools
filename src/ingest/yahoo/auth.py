@@ -13,7 +13,7 @@ import json
 import time
 from pathlib import Path
 
-import requests
+import httpx
 from dotenv import dotenv_values
 
 PROJECT_ROOT = Path(__file__).parents[3]
@@ -48,15 +48,14 @@ def get_auth_url() -> str:
         "response_type": "code",
         "scope": SCOPE,
     }
-    req = requests.Request("GET", AUTH_URL, params=params)
-    return req.prepare().url
+    return str(httpx.URL(AUTH_URL, params=params))
 
 
 def exchange_code(auth_code: str) -> dict:
     """Exchange an authorization code for access and refresh tokens."""
     client_id, client_secret = _load_credentials()
 
-    resp = requests.post(
+    resp = httpx.post(
         TOKEN_URL,
         data={
             "grant_type": "authorization_code",
@@ -83,7 +82,7 @@ def refresh_token() -> dict:
 
     client_id, client_secret = _load_credentials()
 
-    resp = requests.post(
+    resp = httpx.post(
         TOKEN_URL,
         data={
             "grant_type": "refresh_token",

@@ -9,6 +9,43 @@ import re
 # Non-player name prefixes to filter out
 COACH_TITLES = {"head coach", "coach", "assistant coach", "gm", "general manager"}
 
+# Known coaches/non-players to filter from entity extraction.
+# Includes current (2025-26) NHL head coaches plus recent former HCs.
+KNOWN_NON_PLAYERS = {
+    # Current 2025-26 head coaches
+    "rod brind'amour", "bruce cassidy", "jon cooper", "craig berube",
+    "sheldon keefe", "peter laviolette", "rick tocchet", "lindy ruff",
+    "paul maurice", "todd mclellan", "patrick roy", "spencer carbery",
+    "andre tourigny", "ryan warsofsky", "derek lalonde", "jared bednar",
+    "peter deboer", "kris knoblauch", "greg cronin", "ryan huska",
+    "travis green", "dean evason", "john hynes",
+    "scott arniel", "jay woodcroft", "lane lambert", "jim montgomery",
+    "dave hakstol", "mike sullivan",
+    # Recent former coaches
+    "joel quenneville", "andrew brunette", "rick bowness", "dj smith",
+    "martin st. louis",
+    # Common short forms used in tweets ("HC Keefe", etc.)
+    "keefe", "berube", "cooper", "brind'amour", "laviolette", "tocchet",
+    "ruff", "maurice", "bednar", "arniel", "sullivan", "deboer",
+    "knoblauch", "cronin", "huska", "carbery", "tourigny", "warsofsky",
+    "lalonde", "montgomery", "mclellan", "hakstol",
+}
+
+# Map tweet source handles to team abbreviations
+SOURCE_HANDLE_TO_ABBREV = {
+    "avalanche": "COL", "penguins": "PIT", "nhlbruins": "BOS",
+    "lakings": "LAK", "dallasstars": "DAL", "stloulsblues": "STL",
+    "nhlflyers": "PHI", "tbllightning": "TBL", "faboredwings": "DET",
+    "nyjets": "WPG", "canucks": "VAN", "seattlekrakenpr": "SEA",
+    "nhlcanes": "CAR", "maplelefs": "TOR", "senators": "OTT",
+    "nhlducks": "ANA", "buffalosabres": "BUF", "nhlflames": "CGY",
+    "floridapanthers": "FLA", "mnwild": "MIN", "canadiensmtl": "MTL",
+    "nashvillepreds": "NSH", "njdevils": "NJD", "nyislanders": "NYI",
+    "nyrangers": "NYR", "sjsharknews": "SJS", "vegasgoldenknights": "VGK",
+    "capitals": "WSH", "utahmammoth": "UTA", "bluejacketsnhl": "CBJ",
+    "blackhawks": "CHI", "penguinspr": "PIT", "seattlekraken": "SEA",
+}
+
 # Map common hashtags/nicknames to NHL team abbreviations
 HASHTAG_TO_ABBREV = {
     # Direct abbreviations
@@ -65,6 +102,22 @@ def classify(text: str) -> str:
     """
     lower = text.lower()
 
+    # Goalie starts take priority — "start in net" is unambiguous even if
+    # the same tweet mentions an injured teammate in parens.
+    if re.search(
+        r'(start[s]?\s+in\s+net|gets\s+the\s+(net|start)|between\s+the\s+pipes|'
+        r'will\s+(go\s+in\s+goal|start\s+in\s+(net|goal))|in\s+goal\s+(tonight|today))',
+        lower,
+    ):
+        return "GOALIE"
+
+    # "Not returning to lineup" mid-game = injury (left game hurt)
+    if re.search(
+        r'(not\s+returning|will\s+not\s+return|won.?t\s+return)',
+        lower,
+    ):
+        return "INJURY"
+
     if re.search(
         r'(injur|day-to-day|dtd|upper.?body|lower.?body|concuss|surgery|broken|'
         r'fracture|sidelined|miss\w* \d|out \d|out indefin|placed on ir|ltir|'
@@ -98,8 +151,10 @@ def classify(text: str) -> str:
         return "SCRATCH"
 
     if re.search(
-        r'(return|back in|cleared to|activated|off ir|off injured|'
-        r'back in the lineup)',
+        r'(will\s+return|is\s+back|back\s+in\s+(the\s+)?(lineup|tonight|today)|'
+        r'cleared\s+to|activated|off\s+ir|off\s+injured|'
+        r'returning\s+to|return\s+tonight|return\s+today|'
+        r'confirms\s+\w+\s+back)',
         lower,
     ):
         return "RETURN"
@@ -123,16 +178,37 @@ def extract_entities(text: str, category: str) -> dict:
         team_tags: list of team hashtags
         summary: short actionable summary
     """
-    # Extract player names (First Last pattern)
+    # Extract player names — multiple patterns
+    # Standard: "First Last" (e.g. "Roman Josi")
     raw_names = re.findall(
         r'(?:^|[\s,\-])([A-Z][a-z]+(?:\s(?:de\s|van\s|von\s)?[A-Z][a-z\'\-]+)+)',
         text,
     )
+    # Initials: "TJ Hughes", "PK Subban"
+    initial_names = re.findall(
+        r'(?:^|[\s,])([A-Z]{1,2}\.?\s[A-Z][a-z\'\-]+)',
+        text,
+    )
+    raw_names.extend(initial_names)
+    # Single last name with context: "Gudas (lower-body)"
+    parens_names = re.findall(
+        r'(?:^|[\s,])([A-Z][a-z\'\-]{2,})(?:\s*\()', text
+    )
+    raw_names.extend(parens_names)
+    # Single name before action keywords: 'said Gudas "could play"', "Gudas is out"
+    action_names = re.findall(
+        r'(?:said\s+)([A-Z][a-z\'\-]{2,})',
+        text,
+    )
+    raw_names.extend(action_names)
 
-    # Filter out coach names
+    # Filter out coach names and non-players
     players = []
     for name in raw_names:
         name = name.strip()
+        # Check against known non-players
+        if name.lower() in KNOWN_NON_PLAYERS:
+            continue
         # Check if preceded by a coach title
         idx = text.find(name)
         if idx > 0:
@@ -142,13 +218,30 @@ def extract_entities(text: str, category: str) -> dict:
         # Filter out obviously non-player strings
         if any(w in name.lower() for w in ["coach", "manager", "valley", "michigan"]):
             continue
-        players.append(name)
+        # Filter out common words that look like names
+        if name.lower() in {"head coach", "game time", "no morning"}:
+            continue
+        # Deduplicate: skip if a longer version of this name is already in the list
+        if any(name in existing and name != existing for existing in players):
+            continue
+        if name not in players:
+            players.append(name)
 
-    # Extract injury type
+    # Extract injury type — and identify the player it attaches to
     injury_type = None
-    inj_match = re.search(r'\(([\w\-\s]*body[\w\-\s]*)\)', text, re.I)
+    injured_player = None
+    inj_match = re.search(
+        r'([A-Z][\w\'\-\.]+(?:\s[A-Z][\w\'\-\.]+)+)\s*\(([\w\-\s]*body[\w\-\s]*)\)',
+        text,
+        re.I,
+    )
     if inj_match:
-        injury_type = inj_match.group(1).strip()
+        injured_player = inj_match.group(1).strip()
+        injury_type = inj_match.group(2).strip()
+        # Promote the injured player to the front of the players list
+        if injured_player in players:
+            players.remove(injured_player)
+        players.insert(0, injured_player)
     elif re.search(r'day.to.day', text, re.I):
         injury_type = "day-to-day"
     elif re.search(r'game.?time', text, re.I):

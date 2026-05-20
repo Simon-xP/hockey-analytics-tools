@@ -24,7 +24,7 @@ from io import StringIO
 from pathlib import Path
 
 import pandas as pd
-import requests
+import httpx
 
 from src.core.db import get_session
 from src.core.models import (
@@ -104,7 +104,7 @@ NST_HEADERS = {
 
 def fetch_html(url: str) -> str:
     """Fetch HTML from URL."""
-    response = requests.get(url, headers=NST_HEADERS)
+    response = httpx.get(url, headers=NST_HEADERS)
     response.raise_for_status()
     return response.text
 
@@ -1178,7 +1178,7 @@ def scrape_all_game_logs(
                 df = fetch_game_log(season, nhl_id, sit, stdoi)
                 tracker.increment()
                 request_count += 1
-            except requests.exceptions.HTTPError as e:
+            except httpx.HTTPStatusError as e:
                 status = e.response.status_code if hasattr(e, 'response') else None
                 if status in (429, 403):
                     print(f"\n    Rate limited (HTTP {status}). Stopping and saving progress.")

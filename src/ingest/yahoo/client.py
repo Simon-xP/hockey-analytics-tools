@@ -7,7 +7,7 @@ API docs: https://developer.yahoo.com/fantasysports/guide/
 Base URL: https://fantasysports.yahooapis.com/fantasy/v2
 """
 
-import requests
+import httpx
 import xml.etree.ElementTree as ET
 
 from src.ingest.yahoo.auth import get_access_token
@@ -30,7 +30,7 @@ def _get(path: str, params: dict = None) -> ET.Element:
         raise ValueError("Not authenticated with Yahoo. Connect your account first.")
 
     url = f"{BASE_URL}{path}"
-    resp = requests.get(
+    resp = httpx.get(
         url,
         params=params,
         headers={"Authorization": f"Bearer {token}"},
@@ -133,24 +133,38 @@ def get_matchup(league_key: str, week: int = None) -> dict:
     return matchups[0] if matchups else {}
 
 
-def get_free_agents(league_key: str, position: str = None, count: int = 25) -> list[dict]:
-    """Get available free agents in a league."""
-    params = {"count": count, "status": "FA"}
-    if position:
-        params["position"] = position
+def get_free_agents(league_key: str, count: int = 50, sort: str = "AR") -> list[dict]:
+    """Get available free agents in a league, sorted by average rank.
 
-    root = _get(f"/league/{league_key}/players;status=FA;count={count}")
-
+    Paginates through Yahoo's 25-per-page limit to get more results.
+    sort=AR gives the most relevant active players.
+    """
     players = []
-    for player_el in root.iter(f"{{{NS['yh']}}}player"):
-        players.append({
-            "player_key": _text(player_el, "player_key"),
-            "player_id": _text(player_el, "player_id"),
-            "name": _text(player_el.find(f"yh:name", NS), "full") if player_el.find(f"yh:name", NS) is not None else None,
-            "team": _text(player_el, "editorial_team_abbr"),
-            "position": _text(player_el, "display_position"),
-            "status": _text(player_el, "status"),
-        })
+    start = 0
+
+    while len(players) < count:
+        batch = min(25, count - len(players))
+        root = _get(
+            f"/league/{league_key}/players;status=FA;sort={sort}"
+            f";start={start};count={batch}"
+        )
+
+        page_players = []
+        for player_el in root.iter(f"{{{NS['yh']}}}player"):
+            page_players.append({
+                "player_key": _text(player_el, "player_key"),
+                "player_id": _text(player_el, "player_id"),
+                "name": _text(player_el.find(f"yh:name", NS), "full") if player_el.find(f"yh:name", NS) is not None else None,
+                "team": _text(player_el, "editorial_team_abbr"),
+                "position": _text(player_el, "display_position"),
+                "status": _text(player_el, "status"),
+            })
+
+        if not page_players:
+            break
+
+        players.extend(page_players)
+        start += len(page_players)
 
     return players
 
