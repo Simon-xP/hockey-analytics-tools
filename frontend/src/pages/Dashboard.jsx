@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Card from "../components/Card";
-import { useApi } from "../hooks/useApi";
 import {
   getTodayGames,
   getScheduleOutlook,
@@ -11,16 +11,135 @@ import {
   getYahooLeagues,
   getYahooOptimalAdds,
   getStreamableGoalies,
-  getNewsFeed,
+  getAllInjuries,
   getYahooStandings,
   getYahooRosterWeek,
 } from "../api/client";
 import "./Dashboard.css";
 
+function formatGameTime(iso) {
+  if (!iso) return "TBD";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "TBD";
+  return d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function gameStatus(g) {
+  const hasScore = g.away_score !== null && g.away_score !== undefined;
+  if (!hasScore) return "scheduled";
+  if (!g.start_time_utc) return "final";
+  const start = new Date(g.start_time_utc);
+  const elapsed = (Date.now() - start.getTime()) / 60000;
+  if (elapsed > 0 && elapsed < 210) return "live";
+  return "final";
+}
+
+function GameTile({ game, expanded, onToggle }) {
+  const status = gameStatus(game);
+  const hasScore = game.away_score !== null && game.away_score !== undefined;
+
+  return (
+    <button
+      type="button"
+      className={`scorebar-game ${expanded ? "expanded" : ""} status-${status}`}
+      onClick={onToggle}
+    >
+      <div className="scorebar-game-header">
+        <span className={`scorebar-status status-${status}`}>
+          {status === "live" && <span className="status-live-dot" />}
+          {status === "live" ? "LIVE" : status === "final" ? "FINAL" : formatGameTime(game.start_time_utc)}
+        </span>
+      </div>
+      <div className="scorebar-game-body">
+        <div className="scorebar-team">
+          <img
+            src={`https://assets.nhle.com/logos/nhl/svg/${game.away}_dark.svg`}
+            alt={game.away}
+            className="scorebar-logo"
+          />
+          <div className="scorebar-team-info">
+            <span className="scorebar-abbrev">{game.away}</span>
+            <span className="scorebar-record">{game.away_record || "—"}</span>
+          </div>
+          {hasScore && <span className="scorebar-score">{game.away_score}</span>}
+        </div>
+        <div className="scorebar-team">
+          <img
+            src={`https://assets.nhle.com/logos/nhl/svg/${game.home}_dark.svg`}
+            alt={game.home}
+            className="scorebar-logo"
+          />
+          <div className="scorebar-team-info">
+            <span className="scorebar-abbrev">{game.home}</span>
+            <span className="scorebar-record">{game.home_record || "—"}</span>
+          </div>
+          {hasScore && <span className="scorebar-score">{game.home_score}</span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function GameDetail({ game, onClose }) {
+  if (!game) return null;
+  const status = gameStatus(game);
+  const hasScore = game.away_score !== null && game.away_score !== undefined;
+
+  return (
+    <div className="scorebar-detail">
+      <div className="scorebar-detail-header">
+        <div className="scorebar-detail-status">
+          {status === "live" && <span className="status-live-dot" />}
+          <span className={`scorebar-detail-tag status-${status}`}>
+            {status === "live" ? "IN PROGRESS" : status === "final" ? "FINAL" : "SCHEDULED"}
+          </span>
+          <span className="scorebar-detail-time">
+            {formatGameTime(game.start_time_utc)}
+          </span>
+        </div>
+        <button className="scorebar-detail-close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+      </div>
+      <div className="scorebar-detail-body">
+        <div className="scorebar-detail-team">
+          <img
+            src={`https://assets.nhle.com/logos/nhl/svg/${game.away}_dark.svg`}
+            alt={game.away}
+            className="scorebar-detail-logo"
+          />
+          <div>
+            <div className="scorebar-detail-name">{game.away_name || game.away}</div>
+            <div className="scorebar-detail-record">{game.away_record || "—"}</div>
+          </div>
+          {hasScore && <span className="scorebar-detail-score">{game.away_score}</span>}
+        </div>
+        <div className="scorebar-detail-vs">@</div>
+        <div className="scorebar-detail-team">
+          <img
+            src={`https://assets.nhle.com/logos/nhl/svg/${game.home}_dark.svg`}
+            alt={game.home}
+            className="scorebar-detail-logo"
+          />
+          <div>
+            <div className="scorebar-detail-name">{game.home_name || game.home}</div>
+            <div className="scorebar-detail-record">{game.home_record || "—"}</div>
+          </div>
+          {hasScore && <span className="scorebar-detail-score">{game.home_score}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GameBar({ games, label }) {
   const scrollRef = useRef(null);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
 
   function updateScrollState() {
     const el = scrollRef.current;
@@ -41,63 +160,50 @@ function GameBar({ games, label }) {
     };
   }, [games]);
 
+  const selected = games.find((g) => g.game_id === selectedId) || null;
+
   return (
     <div className="scorebar">
       <div className="scorebar-label">{label}</div>
       <div className="scorebar-track">
         <button
           className={`scorebar-arrow scorebar-arrow-left ${canScrollLeft ? "arrow-visible" : ""}`}
-          onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" })}
+          onClick={() => scrollRef.current?.scrollBy({ left: -240, behavior: "smooth" })}
         >
           ‹
         </button>
         <div className="scorebar-inner" ref={scrollRef}>
           {games.map((g, i) => (
-            <div key={g.game_id || i} className="scorebar-game">
-              <div className="scorebar-team">
-                <img
-                  src={`https://assets.nhle.com/logos/nhl/svg/${g.away}_dark.svg`}
-                  alt={g.away}
-                  className="scorebar-logo"
-                />
-                <span className="scorebar-abbrev">{g.away}</span>
-                {g.away_score !== null && g.away_score !== undefined && (
-                  <span className="scorebar-score">{g.away_score}</span>
-                )}
-              </div>
-              <div className="scorebar-team">
-                <img
-                  src={`https://assets.nhle.com/logos/nhl/svg/${g.home}_dark.svg`}
-                  alt={g.home}
-                  className="scorebar-logo"
-                />
-                <span className="scorebar-abbrev">{g.home}</span>
-                {g.home_score !== null && g.home_score !== undefined && (
-                  <span className="scorebar-score">{g.home_score}</span>
-                )}
-              </div>
-            </div>
+            <GameTile
+              key={g.game_id || i}
+              game={g}
+              expanded={g.game_id === selectedId}
+              onToggle={() =>
+                setSelectedId(g.game_id === selectedId ? null : g.game_id)
+              }
+            />
           ))}
         </div>
         <button
           className={`scorebar-arrow scorebar-arrow-right ${canScrollRight ? "arrow-visible" : ""}`}
-          onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" })}
+          onClick={() => scrollRef.current?.scrollBy({ left: 240, behavior: "smooth" })}
         >
           ›
         </button>
       </div>
+      {selected && <GameDetail game={selected} onClose={() => setSelectedId(null)} />}
     </div>
   );
 }
 
 function Scorebar() {
-  const { data, loading } = useApi(getTodayGames);
+  const { data, isLoading: loading } = useQuery({ queryKey: ["today-games"], queryFn: getTodayGames });
 
   if (loading) {
     return (
       <div className="scorebar">
         <div className="scorebar-inner">
-          <div className="placeholder-shimmer" style={{ height: 48, width: "100%" }} />
+          <div className="placeholder-shimmer" style={{ height: 92, width: "100%" }} />
         </div>
       </div>
     );
@@ -108,8 +214,13 @@ function Scorebar() {
     game_id: g.game_id,
     away: g.away_team?.abbrev,
     home: g.home_team?.abbrev,
+    away_name: g.away_team?.name,
+    home_name: g.home_team?.name,
+    away_record: g.away_team?.record,
+    home_record: g.home_team?.record,
     away_score: g.away_score,
     home_score: g.home_score,
+    start_time_utc: g.start_time_utc,
   }));
 
   const label = games.length > 0 ? `${games.length} Games Today` : "No Games Today";
@@ -118,7 +229,7 @@ function Scorebar() {
 }
 
 function ScheduleOutlook() {
-  const { data, loading } = useApi(getScheduleOutlook);
+  const { data, isLoading: loading } = useQuery({ queryKey: ["schedule-outlook"], queryFn: getScheduleOutlook });
 
   if (loading) return <div className="placeholder-shimmer" />;
 
@@ -205,18 +316,16 @@ function RegressionList({ players, direction }) {
 }
 
 function OptimalAddsPreview() {
-  const { data: yahooStatus } = useApi(getYahooStatus);
-  const { data: leagueData } = useApi(getYahooLeagues);
+  const { data: yahooStatus } = useQuery({ queryKey: ["yahoo-status"], queryFn: getYahooStatus });
+  const { data: leagueData } = useQuery({ queryKey: ["yahoo-leagues"], queryFn: getYahooLeagues, enabled: !!yahooStatus?.connected });
   const leagueKey = leagueData?.leagues?.[0]?.league_key;
   const connected = yahooStatus?.connected && leagueKey;
 
-  const { data, loading } = useApi(
-    () =>
-      connected
-        ? getYahooOptimalAdds(leagueKey, 4)
-        : getOptimalAdds(4),
-    [connected, leagueKey]
-  );
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["optimal-adds-preview", connected ? "yahoo" : "generic", leagueKey],
+    queryFn: () => connected ? getYahooOptimalAdds(leagueKey, 4) : getOptimalAdds(4),
+    enabled: yahooStatus !== undefined,
+  });
 
   const navigate = useNavigate();
 
@@ -249,7 +358,7 @@ function OptimalAddsPreview() {
 }
 
 function BuySellWidgets() {
-  const { data, loading } = useApi(getRegressionCandidates);
+  const { data, isLoading: loading } = useQuery({ queryKey: ["regression"], queryFn: getRegressionCandidates });
 
   if (loading) {
     return (
@@ -300,7 +409,7 @@ const SLUG_TO_ABBREV = {
 
 function StreamableGoaliesWidget() {
   const navigate = useNavigate();
-  const { data, loading } = useApi(getStreamableGoalies);
+  const { data, isLoading: loading } = useQuery({ queryKey: ["streamable-goalies"], queryFn: getStreamableGoalies });
 
   if (loading) return <div className="placeholder-shimmer" />;
 
@@ -379,72 +488,101 @@ function StreamableGoaliesWidget() {
   );
 }
 
-function NewsFeedWidget() {
-  const { data, loading } = useApi(() => getNewsFeed(8));
+const SEVERITY_COLOR = {
+  season: "#ef4444",
+  "month-plus": "#f97316",
+  "week-to-week": "#eab308",
+  "day-to-day": "#7c5cfc",
+  unknown: "#94a3b8",
+};
+
+const SEVERITY_LABEL = {
+  season: "SEASON",
+  "month-plus": "MONTH+",
+  "week-to-week": "WTW",
+  "day-to-day": "DTD",
+  unknown: "UNK",
+};
+
+function InjuryWidget() {
+  const { data, isLoading: loading } = useQuery({ queryKey: ["injuries"], queryFn: getAllInjuries });
+  const navigate = useNavigate();
 
   if (loading) return <div className="placeholder-shimmer" />;
 
-  const items = data?.items || [];
+  const items = (data?.items || []).slice(0, 8);
+
   if (items.length === 0) {
-    return <p className="empty-state">No news available</p>;
+    return <p className="empty-state">No injuries on file</p>;
   }
 
   return (
     <div className="news-feed-list">
-      {items.map((item, i) => (
-        <div key={i} className="news-card">
-          <div className="news-card-left">
-            <span
-              className="news-category-badge"
-              style={{ background: item.category_color + "20", color: item.category_color }}
-            >
-              {item.category_label}
-            </span>
-            {item.players?.[0]?.nhl_id ? (
-              <img
-                src={`https://assets.nhle.com/mugs/nhl/latest/${item.players[0].nhl_id}.png`}
-                alt=""
-                className="news-headshot"
-                onError={(e) => {
-                  // Fall back to team logo if headshot fails
-                  const tag = item.team_tags?.[0];
-                  if (tag) {
-                    e.target.src = `https://assets.nhle.com/logos/nhl/svg/${tag}_dark.svg`;
-                    e.target.className = "news-team-logo-fallback";
-                  } else {
-                    e.target.style.display = "none";
-                  }
-                }}
-              />
-            ) : item.team_tags?.[0] ? (
-              <img
-                src={`https://assets.nhle.com/logos/nhl/svg/${item.team_tags[0]}_dark.svg`}
-                alt=""
-                className="news-team-logo-fallback"
-              />
-            ) : null}
+      {items.map((inj, i) => {
+        const sevColor = SEVERITY_COLOR[inj.severity] || SEVERITY_COLOR.unknown;
+        const clickable = !!inj.nhl_id;
+        return (
+          <div
+            key={i}
+            className={`news-card ${clickable ? "news-card-clickable" : ""}`}
+            onClick={() => clickable && navigate(`/players/${inj.nhl_id}`)}
+          >
+            <div className="news-card-left">
+              {inj.headshot ? (
+                <img
+                  src={inj.headshot}
+                  alt=""
+                  className="news-headshot"
+                  onError={(e) => {
+                    if (inj.team_abbrev) {
+                      e.target.src = `https://assets.nhle.com/logos/nhl/svg/${inj.team_abbrev}_dark.svg`;
+                      e.target.className = "news-team-logo-fallback";
+                    } else {
+                      e.target.style.display = "none";
+                    }
+                  }}
+                />
+              ) : inj.team_abbrev ? (
+                <img
+                  src={`https://assets.nhle.com/logos/nhl/svg/${inj.team_abbrev}_dark.svg`}
+                  alt=""
+                  className="news-team-logo-fallback"
+                />
+              ) : null}
+            </div>
+            <div className="news-card-content">
+              <div className="news-summary-row">
+                <span
+                  className="news-category-badge"
+                  style={{ background: sevColor + "20", color: sevColor }}
+                >
+                  {SEVERITY_LABEL[inj.severity] || "UNK"}
+                </span>
+                <p className="news-summary">
+                  {inj.player_name}
+                  {inj.body_part ? ` — ${inj.body_part}` : ""}
+                </p>
+              </div>
+              <p className="news-detail">{inj.summary}</p>
+            </div>
           </div>
-          <div className="news-card-content">
-            <p className="news-summary">{item.summary}</p>
-            <p className="news-detail">{item.text}</p>
-            {item.source && <span className="news-source">{item.source}</span>}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 function LeagueStandingsWidget() {
-  const { data: yahooStatus } = useApi(getYahooStatus);
-  const { data: leagueData } = useApi(getYahooLeagues);
+  const { data: yahooStatus } = useQuery({ queryKey: ["yahoo-status"], queryFn: getYahooStatus });
+  const { data: leagueData } = useQuery({ queryKey: ["yahoo-leagues"], queryFn: getYahooLeagues, enabled: !!yahooStatus?.connected });
   const leagueKey = leagueData?.leagues?.[0]?.league_key;
   const connected = yahooStatus?.connected && leagueKey;
 
-  const { data, loading } = useApi(
-    () => (connected ? getYahooStandings(leagueKey) : Promise.resolve(null)),
-    [connected, leagueKey]
-  );
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["yahoo-standings", leagueKey],
+    queryFn: () => getYahooStandings(leagueKey),
+    enabled: !!connected,
+  });
 
   if (!connected) {
     return <p className="empty-state">Connect Yahoo to see league standings</p>;
@@ -468,15 +606,16 @@ function LeagueStandingsWidget() {
 
 function RosterProjectionsWidget() {
   const navigate = useNavigate();
-  const { data: yahooStatus } = useApi(getYahooStatus);
-  const { data: leagueData } = useApi(getYahooLeagues);
+  const { data: yahooStatus } = useQuery({ queryKey: ["yahoo-status"], queryFn: getYahooStatus });
+  const { data: leagueData } = useQuery({ queryKey: ["yahoo-leagues"], queryFn: getYahooLeagues, enabled: !!yahooStatus?.connected });
   const leagueKey = leagueData?.leagues?.[0]?.league_key;
   const connected = yahooStatus?.connected && leagueKey;
 
-  const { data, loading } = useApi(
-    () => (connected ? getYahooRosterWeek(leagueKey) : Promise.resolve(null)),
-    [connected, leagueKey]
-  );
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["yahoo-roster-week", leagueKey],
+    queryFn: () => getYahooRosterWeek(leagueKey),
+    enabled: !!connected,
+  });
 
   if (!connected) {
     return <p className="empty-state">Connect Yahoo to see roster projections</p>;
@@ -547,8 +686,8 @@ export default function Dashboard() {
           <StreamableGoaliesWidget />
         </Card>
 
-        <Card title="News" linkTo="/news" className="span-2 card-fixed">
-          <NewsFeedWidget />
+        <Card title="Injuries" linkTo="/injuries" className="span-2 card-fixed">
+          <InjuryWidget />
         </Card>
 
         {/* Row 2: Roster Projections + Schedule + Optimal Adds */}

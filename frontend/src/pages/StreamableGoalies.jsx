@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Card from "../components/Card";
-import { useApi } from "../hooks/useApi";
 import { getStreamableGoalies } from "../api/client";
 import "./StreamableGoalies.css";
 
@@ -61,7 +61,10 @@ function Tooltip({ text }) {
 }
 
 export default function StreamableGoalies() {
-  const { data, loading } = useApi(getStreamableGoalies);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["streamable-goalies"],
+    queryFn: getStreamableGoalies,
+  });
   const navigate = useNavigate();
 
   const goalies = data?.goalies || [];

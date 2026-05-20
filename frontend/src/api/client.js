@@ -1,26 +1,9 @@
 const API_BASE = "https://localhost:8000/api";
 
-// Client-side cache: stores responses for 10 minutes
-const cache = new Map();
-const CACHE_TTL = 10 * 60 * 1000;
-
-async function fetchJSON(path, { skipCache = false } = {}) {
-  const now = Date.now();
-
-  if (!skipCache && cache.has(path)) {
-    const { data, timestamp } = cache.get(path);
-    if (now - timestamp < CACHE_TTL) {
-      return data;
-    }
-    cache.delete(path);
-  }
-
+async function fetchJSON(path) {
   const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
-  const data = await res.json();
-
-  cache.set(path, { data, timestamp: now });
-  return data;
+  return res.json();
 }
 
 export function getTodayGames() {
@@ -36,7 +19,7 @@ export function getScheduleOutlook() {
 }
 
 export function searchPlayers(query) {
-  return fetchJSON(`/players/search?q=${encodeURIComponent(query)}`, { skipCache: true });
+  return fetchJSON(`/players/search?q=${encodeURIComponent(query)}`);
 }
 
 export function getPlayer(nhlId) {
@@ -108,12 +91,16 @@ export function getTeamLines(teamSlug) {
   return fetchJSON(`/news/lines/${teamSlug}`);
 }
 
-export function getNewsFeed(limit = 20) {
-  return fetchJSON(`/news/feed?limit=${limit}`);
+export function getNewsFeed(limit = 20, offset = 0) {
+  return fetchJSON(`/news/feed?limit=${limit}&offset=${offset}`);
 }
 
 export function getTeamInjuries(teamSlug) {
   return fetchJSON(`/news/injuries/${teamSlug}`);
+}
+
+export function getAllInjuries() {
+  return fetchJSON(`/news/injuries`);
 }
 
 // Goalie matchups
@@ -127,46 +114,4 @@ export function getGoalieMatchupTeam(abbrev) {
 
 export function getYahooRosterWeek(leagueKey) {
   return fetchJSON(`/yahoo/roster-week/${leagueKey}`);
-}
-
-// Clear all cached data — call when user wants fresh data
-export function clearCache() {
-  cache.clear();
-}
-
-// Prefetch all dashboard + Yahoo data on app startup so tabs load instantly
-export async function prefetchAll() {
-  try {
-    // Start everything in parallel
-    const statusPromise = getYahooStatus();
-    const todayPromise = getTodayGames();
-    const schedulePromise = getScheduleOutlook(7);
-    const regressionPromise = getRegressionCandidates();
-
-    const [status] = await Promise.all([
-      statusPromise,
-      todayPromise,
-      schedulePromise,
-      regressionPromise,
-    ]);
-
-    // If Yahoo is connected, prefetch Yahoo-specific data
-    if (status?.connected) {
-      const leagues = await getYahooLeagues();
-      const leagueKey = leagues?.leagues?.[0]?.league_key;
-      if (leagueKey) {
-        // Fire these in parallel
-        await Promise.all([
-          getYahooOptimalAdds(leagueKey, 50),
-          getYahooRosterWeek(leagueKey),
-          getYahooTrending(leagueKey, 20),
-        ]);
-      }
-    } else {
-      // Prefetch non-Yahoo optimal adds
-      await getOptimalAdds(50);
-    }
-  } catch {
-    // Prefetch failures are fine — pages will fetch on demand
-  }
 }

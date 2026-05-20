@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Card from "../components/Card";
-import { useApi } from "../hooks/useApi";
 import { getRegressionCandidates } from "../api/client";
 import "./TradeTargets.css";
 
@@ -57,7 +57,10 @@ function RegressionTable({ players, direction }) {
 }
 
 export default function TradeTargets() {
-  const { data, loading } = useApi(getRegressionCandidates);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["regression"],
+    queryFn: getRegressionCandidates,
+  });
 
   return (
     <div className="trade-targets">

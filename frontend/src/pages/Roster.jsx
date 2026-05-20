@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Card from "../components/Card";
-import { useApi } from "../hooks/useApi";
 import {
   getYahooStatus,
   getYahooLeagues,
@@ -283,13 +283,17 @@ function GoalieTable({ goalies, weekSummary }) {
 }
 
 function ConnectedRoster() {
-  const { data: leagueData, loading: leaguesLoading } = useApi(getYahooLeagues);
+  const { data: leagueData, isLoading: leaguesLoading } = useQuery({
+    queryKey: ["yahoo-leagues"],
+    queryFn: getYahooLeagues,
+  });
   const leagueKey = leagueData?.leagues?.[0]?.league_key;
 
-  const { data, loading } = useApi(
-    () => (leagueKey ? getYahooRosterWeek(leagueKey) : Promise.resolve(null)),
-    [leagueKey]
-  );
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["yahoo-roster-week", leagueKey],
+    queryFn: () => getYahooRosterWeek(leagueKey),
+    enabled: !!leagueKey,
+  });
 
   if (leaguesLoading || loading) {
     return <div className="placeholder-shimmer" style={{ height: 400 }} />;
@@ -320,7 +324,10 @@ function ConnectedRoster() {
 }
 
 export default function Roster() {
-  const { data: yahooStatus } = useApi(getYahooStatus);
+  const { data: yahooStatus } = useQuery({
+    queryKey: ["yahoo-status"],
+    queryFn: getYahooStatus,
+  });
   const connected = yahooStatus?.connected;
 
   return (

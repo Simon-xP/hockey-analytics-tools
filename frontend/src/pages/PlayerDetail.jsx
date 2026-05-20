@@ -1,11 +1,14 @@
 import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Card from "../components/Card";
-import { useApi } from "../hooks/useApi";
 import { getPlayer, getPlayerForecast } from "../api/client";
 import "./PlayerDetail.css";
 
 function ForecastCard({ nhlId }) {
-  const { data, loading } = useApi(() => getPlayerForecast(nhlId), [nhlId]);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["player-forecast", nhlId],
+    queryFn: () => getPlayerForecast(nhlId),
+  });
 
   if (loading) return <div className="placeholder-shimmer" style={{ height: 100 }} />;
   if (!data?.predictions || Object.keys(data.predictions).length === 0) {
@@ -95,7 +98,10 @@ function GoalieStatsCard({ stats }) {
 
 export default function PlayerDetail() {
   const { nhlId } = useParams();
-  const { data, loading, error } = useApi(() => getPlayer(nhlId), [nhlId]);
+  const { data, isLoading: loading, error } = useQuery({
+    queryKey: ["player", nhlId],
+    queryFn: () => getPlayer(nhlId),
+  });
 
   if (loading) return <div className="placeholder-shimmer" style={{ height: 200 }} />;
   if (error) return <p className="error">Failed to load player</p>;

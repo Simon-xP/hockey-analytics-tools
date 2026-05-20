@@ -1,11 +1,14 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Card from "../components/Card";
-import { useApi } from "../hooks/useApi";
 import { getGoalieMatchupRankings } from "../api/client";
 import "./GoalieMatchups.css";
 
 export default function GoalieMatchups() {
-  const { data, loading } = useApi(getGoalieMatchupRankings);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["goalie-matchup-rankings"],
+    queryFn: getGoalieMatchupRankings,
+  });
   const navigate = useNavigate();
 
   const rankings = data?.rankings || [];

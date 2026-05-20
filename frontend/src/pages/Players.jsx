@@ -1,25 +1,33 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   searchPlayers,
   getYahooStatus,
   getYahooLeagues,
   getYahooTrending,
 } from "../api/client";
-import { useApi } from "../hooks/useApi";
 import Card from "../components/Card";
 import "./Players.css";
 
 function TrendingPlayers() {
-  const { data: yahooStatus } = useApi(getYahooStatus);
-  const { data: leagueData } = useApi(getYahooLeagues);
+  const { data: yahooStatus } = useQuery({
+    queryKey: ["yahoo-status"],
+    queryFn: getYahooStatus,
+  });
+  const { data: leagueData } = useQuery({
+    queryKey: ["yahoo-leagues"],
+    queryFn: getYahooLeagues,
+    enabled: !!yahooStatus?.connected,
+  });
   const leagueKey = leagueData?.leagues?.[0]?.league_key;
   const connected = yahooStatus?.connected && leagueKey;
 
-  const { data, loading } = useApi(
-    () => (connected ? getYahooTrending(leagueKey, 20) : Promise.resolve(null)),
-    [connected, leagueKey]
-  );
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["yahoo-trending", leagueKey],
+    queryFn: () => getYahooTrending(leagueKey, 20),
+    enabled: !!connected,
+  });
 
   const navigate = useNavigate();
 

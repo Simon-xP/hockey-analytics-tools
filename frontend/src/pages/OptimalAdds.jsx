@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Card from "../components/Card";
-import { useApi } from "../hooks/useApi";
 import { getOptimalAdds, getYahooStatus, getYahooOptimalAdds, getYahooLeagues } from "../api/client";
 import "./OptimalAdds.css";
 
@@ -57,13 +57,17 @@ function AddsTable({ players }) {
 }
 
 function YahooAdds() {
-  const { data: leagueData, loading: leaguesLoading } = useApi(getYahooLeagues);
+  const { data: leagueData, isLoading: leaguesLoading } = useQuery({
+    queryKey: ["yahoo-leagues"],
+    queryFn: getYahooLeagues,
+  });
   const leagueKey = leagueData?.leagues?.[0]?.league_key;
 
-  const { data, loading } = useApi(
-    () => (leagueKey ? getYahooOptimalAdds(leagueKey, 50) : Promise.resolve(null)),
-    [leagueKey]
-  );
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["yahoo-optimal-adds", leagueKey],
+    queryFn: () => getYahooOptimalAdds(leagueKey, 50),
+    enabled: !!leagueKey,
+  });
 
   if (leaguesLoading || loading) {
     return <div className="placeholder-shimmer" style={{ height: 400 }} />;
@@ -79,7 +83,10 @@ function YahooAdds() {
 }
 
 function AllPlayersAdds() {
-  const { data, loading } = useApi(getOptimalAdds);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["optimal-adds"],
+    queryFn: getOptimalAdds,
+  });
 
   if (loading) {
     return <div className="placeholder-shimmer" style={{ height: 400 }} />;
@@ -89,7 +96,10 @@ function AllPlayersAdds() {
 }
 
 export default function OptimalAdds() {
-  const { data: yahooStatus } = useApi(getYahooStatus);
+  const { data: yahooStatus } = useQuery({
+    queryKey: ["yahoo-status"],
+    queryFn: getYahooStatus,
+  });
   const connected = yahooStatus?.connected;
 
   return (
