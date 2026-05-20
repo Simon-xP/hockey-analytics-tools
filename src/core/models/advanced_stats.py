@@ -33,6 +33,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     Float,
+    Index,
     Integer,
     String,
     ForeignKey,
@@ -150,6 +151,9 @@ class GameAdvancedStats(Base):
     __table_args__ = (
         UniqueConstraint('game_id', 'player_id', 'situation',
                          name='uq_game_advanced_stats'),
+        Index('idx_gas_game_id', 'game_id'),
+        Index('idx_gas_player_situation', 'player_id', 'situation'),
+        Index('idx_gas_team_situation', 'team_id', 'situation'),
     )
 
     def __repr__(self):

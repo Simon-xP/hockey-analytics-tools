@@ -25,6 +25,11 @@ def get_session() -> Session:
 
 
 def init_db():
-    """Create all tables defined in models."""
+    """Create all tables defined in models.
+
+    Prefer `alembic upgrade head` for schema management.
+    This function cannot alter existing tables or add columns.
+    """
     from src.core.models import Base
+
     Base.metadata.create_all(bind=engine)
