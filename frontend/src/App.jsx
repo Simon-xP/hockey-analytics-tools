@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import Layout from "./components/Layout";
@@ -13,6 +13,9 @@ import GoalieMatchups from "./pages/GoalieMatchups";
 import StreamableGoalies from "./pages/StreamableGoalies";
 import Injuries from "./pages/Injuries";
 import Agent from "./pages/Agent";
+import Fleet from "./pages/Fleet";
+import BuildLog from "./pages/BuildLog";
+import { AgentProvider } from "./state/agentStore";
 import {
   getTodayGames,
   getScheduleOutlook,
@@ -41,22 +44,34 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="players" element={<Players />} />
-            <Route path="players/:nhlId" element={<PlayerDetail />} />
-            <Route path="roster" element={<Roster />} />
-            <Route path="adds" element={<OptimalAdds />} />
-            <Route path="trades" element={<TradeTargets />} />
-            <Route path="goalie-matchups" element={<GoalieMatchups />} />
-            <Route path="streamable-goalies" element={<StreamableGoalies />} />
-            <Route path="injuries" element={<Injuries />} />
-            <Route path="agent" element={<Agent />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AgentProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              {/* Agent monitoring — the primary surface */}
+              <Route index element={<Fleet />} />
+              <Route path="league/:leagueId" element={<Agent />} />
+
+              {/* Legacy manual tools */}
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="players" element={<Players />} />
+              <Route path="players/:nhlId" element={<PlayerDetail />} />
+              <Route path="roster" element={<Roster />} />
+              <Route path="adds" element={<OptimalAdds />} />
+              <Route path="trades" element={<TradeTargets />} />
+              <Route path="goalie-matchups" element={<GoalieMatchups />} />
+              <Route path="streamable-goalies" element={<StreamableGoalies />} />
+              <Route path="injuries" element={<Injuries />} />
+
+              {/* Project write-up, rendered from docs/how-i-made-this.md */}
+              <Route path="how-i-made-this" element={<BuildLog />} />
+
+              <Route path="agent" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AgentProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

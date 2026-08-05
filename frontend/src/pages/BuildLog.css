@@ -1,0 +1,375 @@
+/* ==========================================================================
+   Build Log — long-form reading page for docs/how-i-made-this.md
+   Every rule is scoped under .build-log so it wins over the global
+   .content h1 / .content h2 styles without !important.
+   ========================================================================== */
+
+.build-log {
+  --bl-measure: 68ch;
+  --bl-pending: var(--warning);
+  padding-bottom: 96px;
+}
+
+.build-log .bl-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+  max-width: 1120px;
+}
+
+@media (min-width: 1180px) {
+  .build-log .bl-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Contents rail
+   -------------------------------------------------------------------------- */
+
+.build-log .bl-rail {
+  display: none;
+}
+
+@media (min-width: 1180px) {
+  .build-log .bl-rail {
+    display: block;
+    position: sticky;
+    top: 8px;
+  }
+}
+
+.build-log .bl-rail-title {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.build-log .bl-rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.build-log .bl-rail-link {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 10px;
+  border-left: 2px solid transparent;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  border-radius: 0 4px 4px 0;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.build-log .bl-rail-link:hover {
+  color: var(--text-primary);
+  background: var(--accent-dim);
+}
+
+.build-log .bl-rail-link.is-active {
+  color: var(--text-primary);
+  border-left-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.build-log .bl-rail-num {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--accent-light);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* --------------------------------------------------------------------------
+   Prose body
+   -------------------------------------------------------------------------- */
+
+.build-log .bl-body {
+  min-width: 0;
+  max-width: var(--bl-measure);
+  font-size: 0.96875rem;
+  line-height: 1.72;
+  color: var(--text-secondary);
+}
+
+.build-log .bl-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.build-log .bl-eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--accent), transparent);
+  opacity: 0.55;
+}
+
+.build-log .bl-title {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+  margin: 0 0 20px;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #fff 0%, #c6b6ff 58%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-wrap: balance;
+}
+
+/* The doc's opening paragraph reads as a standfirst. */
+.build-log .bl-title + p {
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+  margin: 0 0 20px;
+}
+
+.build-log .bl-h2 {
+  font-size: 1.5rem;
+  font-weight: 750;
+  letter-spacing: -0.022em;
+  line-height: 1.18;
+  color: var(--text-primary);
+  margin: 56px 0 18px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 16px;
+  text-wrap: balance;
+}
+
+.build-log .bl-h3 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+  color: var(--text-primary);
+  margin: 32px 0 10px;
+  text-wrap: balance;
+}
+
+.build-log .bl-body p {
+  margin: 0 0 14px;
+  text-wrap: pretty;
+}
+
+.build-log .bl-body strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.build-log .bl-body em {
+  color: var(--text-primary);
+  font-style: italic;
+}
+
+.build-log .bl-body ul,
+.build-log .bl-body ol {
+  margin: 14px 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.build-log .bl-body li {
+  padding-left: 2px;
+}
+
+.build-log .bl-body li::marker {
+  color: var(--accent-light);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.build-log .bl-body code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--accent-dim);
+  border: 1px solid rgba(124, 92, 252, 0.18);
+  color: var(--text-primary);
+  padding: 0.08em 0.36em;
+  border-radius: 3px;
+  overflow-wrap: break-word;
+}
+
+.build-log .bl-body pre {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.build-log .bl-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.build-log .bl-link {
+  color: var(--accent-light);
+  text-decoration: underline;
+  text-decoration-color: rgba(155, 130, 252, 0.4);
+  text-underline-offset: 2px;
+}
+
+.build-log .bl-link:hover {
+  text-decoration-color: var(--accent-light);
+}
+
+.build-log .bl-rule {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 40px 0 0;
+  opacity: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   Pending-entry callout (markdown blockquotes)
+   -------------------------------------------------------------------------- */
+
+.build-log .bl-note {
+  margin: 14px 0;
+  padding: 14px 16px;
+  background: rgba(251, 191, 36, 0.05);
+  border: 1px dashed rgba(251, 191, 36, 0.28);
+  border-left: 3px solid var(--bl-pending);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.90625rem;
+  color: var(--text-secondary);
+}
+
+.build-log .bl-note p {
+  margin: 0 0 8px;
+}
+
+.build-log .bl-note p:last-child {
+  margin-bottom: 0;
+}
+
+.build-log .bl-note strong {
+  color: var(--bl-pending);
+  font-weight: 600;
+}
+
+.build-log .bl-note code {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.22);
+}
+
+/* --------------------------------------------------------------------------
+   Tables
+   -------------------------------------------------------------------------- */
+
+.build-log .bl-table-wrap {
+  overflow-x: auto;
+  margin: 18px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-card);
+}
+
+.build-log .bl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.build-log .bl-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: rgba(124, 92, 252, 0.05);
+}
+
+.build-log .bl-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+
+.build-log .bl-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.build-log .bl-table tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+/* First column of a two-or-three column table is a key, so keep it mono. */
+.build-log .bl-table td:first-child {
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Numeric-looking cells line up. */
+.build-log .bl-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.build-log .bl-table code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--highlight);
+  font-size: 1em;
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+
+.build-log .bl-footer {
+  margin-top: 56px;
+  padding-top: 16px;
+  border-top: 2px solid var(--accent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .build-log * {
+    transition: none;
+  }
+}

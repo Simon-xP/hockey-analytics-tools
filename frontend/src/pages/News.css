@@ -7,92 +7,235 @@
 .news-page-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.news-page-card {
+.news-tweet-card {
   display: flex;
-  gap: 14px;
-  padding: 12px 14px;
+  flex-direction: column;
   background: var(--surface);
   border-radius: 10px;
+  overflow: hidden;
+}
+
+.news-snippets {
+  display: flex;
+  flex-direction: column;
+}
+
+.snippet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
   transition: background 0.1s ease;
 }
 
-.news-clickable {
+.snippet-row:last-child {
+  border-bottom: none;
+}
+
+.snippet-clickable {
   cursor: pointer;
 }
 
-.news-clickable:hover {
+.snippet-clickable:hover {
   background: var(--surface-hover);
 }
 
-.news-page-left {
+.snippet-left {
   flex-shrink: 0;
 }
 
-.news-page-headshot {
-  width: 44px;
-  height: 44px;
+.snippet-headshot {
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--surface-hover);
   object-fit: cover;
 }
 
-.news-page-headshot-placeholder {
-  width: 44px;
-  height: 44px;
+.snippet-team-logo {
+  width: 38px;
+  height: 38px;
+  padding: 6px;
   border-radius: 50%;
   background: var(--surface-hover);
 }
 
-.news-page-body {
+.snippet-headshot-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+}
+
+.snippet-body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.snippet-badge {
+  font-size: 0.52rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.snippet-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-source-tweet {
+  padding: 8px 14px 12px;
+  background: rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.news-page-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.news-page-badge {
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 8px;
-  border-radius: 3px;
-  white-space: nowrap;
-}
-
-.news-page-source {
+.news-source-handle {
   font-size: 0.65rem;
   color: var(--accent-light);
-}
-
-.news-page-summary {
-  font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
 }
 
-.news-page-detail {
-  font-size: 0.78rem;
+.news-source-tweet.clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.news-source-tweet.clickable:hover {
+  background: rgba(124, 92, 252, 0.08);
+}
+
+.news-source-text {
+  font-size: 0.75rem;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.5;
   margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.news-page-team-logo {
-  width: 44px;
-  height: 44px;
-  padding: 8px;
-  border-radius: 50%;
+.news-load-more {
+  display: block;
+  margin: 16px auto 0;
+  padding: 8px 22px;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.news-load-more:hover {
   background: var(--surface-hover);
+}
+
+.news-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.news-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.1s ease, border-color 0.1s ease;
+}
+
+.news-tab:hover {
+  color: var(--text-primary);
+}
+
+.news-tab.active {
+  color: var(--accent-light);
+  border-bottom-color: var(--accent-light);
+}
+
+.injury-row {
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-radius: 10px;
+  border-bottom: none;
+}
+
+.injury-body {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.injury-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.injury-player-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.injury-team {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.injury-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.injury-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+.injury-blurb {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

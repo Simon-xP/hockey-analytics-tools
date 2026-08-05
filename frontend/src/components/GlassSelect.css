@@ -1,0 +1,178 @@
+.glass-select {
+  position: relative;
+  font-family: var(--font-sans);
+}
+
+.glass-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  background: linear-gradient(
+    145deg,
+    rgba(24, 24, 56, 0.75) 0%,
+    rgba(18, 18, 42, 0.55) 100%
+  );
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.glass-select-trigger:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 24px rgba(124, 92, 252, 0.22);
+}
+
+.glass-select.open .glass-select-trigger {
+  border-color: var(--accent);
+  box-shadow: 0 4px 28px rgba(124, 92, 252, 0.3);
+}
+
+.glass-select-current {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.glass-select-label {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.glass-select-sub {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.glass-select-chevron {
+  color: var(--accent-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.glass-select.open .glass-select-chevron {
+  transform: rotate(180deg);
+}
+
+.glass-select-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: linear-gradient(
+    145deg,
+    rgba(28, 28, 64, 0.92) 0%,
+    rgba(20, 20, 46, 0.92) 100%
+  );
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 100;
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    0 0 32px rgba(124, 92, 252, 0.15);
+  animation: glass-select-in 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+@keyframes glass-select-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.glass-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.glass-select-option:hover {
+  background: rgba(124, 92, 252, 0.1);
+  color: var(--text-primary);
+}
+
+.glass-select-option.active {
+  background: rgba(124, 92, 252, 0.15);
+  border-color: rgba(124, 92, 252, 0.3);
+  color: var(--text-primary);
+}
+
+.glass-select-opt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.glass-select-opt-label {
+  color: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.glass-select-opt-sub {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.glass-select-opt-check {
+  color: var(--accent-light);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Menu scrollbar */
+.glass-select-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.glass-select-menu::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}

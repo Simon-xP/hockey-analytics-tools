@@ -1,0 +1,295 @@
+/* ==========================================================================
+   Shared agent widgets: status pills, control buttons, matchup scoreline
+   ========================================================================== */
+
+/* ---------- Page chrome shared by Fleet and the league monitor ---------- */
+.agent-mock-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--warning);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  text-transform: uppercase;
+  /* opt out of the gradient text-fill applied to .content h1 */
+  -webkit-text-fill-color: var(--warning);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+}
+
+.page-subtitle {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.92rem;
+  max-width: 720px;
+}
+
+/* ---------- Status pill ---------- */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.pill-md {
+  font-size: 0.68rem;
+  padding: 5px 12px;
+}
+
+.pill-sm {
+  font-size: 0.6rem;
+  padding: 3px 9px;
+  gap: 6px;
+}
+
+.pill-active {
+  color: var(--highlight);
+  background: rgba(34, 217, 127, 0.1);
+  border-color: rgba(34, 217, 127, 0.3);
+}
+
+.pill-paused {
+  color: var(--warning);
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.pill-stopped {
+  color: var(--negative);
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.dot-active {
+  background: var(--highlight);
+  box-shadow: 0 0 12px var(--highlight);
+}
+
+.dot-paused {
+  background: var(--warning);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+}
+
+.dot-stopped {
+  background: var(--negative);
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
+}
+
+/* ---------- Mode tag ---------- */
+.mode-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  background: rgba(124, 92, 252, 0.06);
+  white-space: nowrap;
+}
+
+.mode-auto {
+  color: var(--accent-light);
+  border-color: rgba(124, 92, 252, 0.35);
+  background: rgba(124, 92, 252, 0.12);
+}
+
+/* ---------- Control buttons ---------- */
+.agent-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-btn {
+  background: rgba(124, 92, 252, 0.08);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.agent-controls.compact .agent-btn {
+  padding: 6px 12px;
+  font-size: 0.65rem;
+  border-radius: 8px;
+}
+
+.agent-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(124, 92, 252, 0.15);
+  box-shadow: 0 0 20px rgba(124, 92, 252, 0.2);
+}
+
+.agent-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.agent-btn-go {
+  border-color: rgba(34, 217, 127, 0.35);
+  color: var(--highlight);
+  background: rgba(34, 217, 127, 0.06);
+}
+
+.agent-btn-go:hover:not(:disabled) {
+  background: rgba(34, 217, 127, 0.14);
+  border-color: var(--highlight);
+  box-shadow: 0 0 20px rgba(34, 217, 127, 0.22);
+}
+
+.agent-btn-kill {
+  border-color: rgba(248, 113, 113, 0.35);
+  color: var(--negative);
+  background: rgba(248, 113, 113, 0.05);
+}
+
+.agent-btn-kill:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: var(--negative);
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.25);
+}
+
+/* ---------- Win probability ---------- */
+.winprob {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.winprob-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(11, 11, 26, 0.8);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.winprob-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.fill-good {
+  background: linear-gradient(90deg, rgba(34, 217, 127, 0.5), var(--highlight));
+  box-shadow: 0 0 12px rgba(34, 217, 127, 0.5);
+}
+
+.fill-even {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.5), var(--warning));
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+}
+
+.fill-bad {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.5), var(--negative));
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.35);
+}
+
+.winprob-label {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.label-good { color: var(--highlight); }
+.label-even { color: var(--warning); }
+.label-bad { color: var(--negative); }
+
+/* ---------- Scoreline ---------- */
+.scoreline {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+}
+
+.score-side {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.score-side-right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.score-team {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.score-value {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.scoreline.compact .score-value {
+  font-size: 1.25rem;
+}
+
+.score-lead {
+  color: var(--text-primary);
+  text-shadow: 0 0 26px rgba(124, 92, 252, 0.45);
+}
+
+.score-proj {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.proj-lead {
+  color: var(--highlight);
+}
+
+.score-sep {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}

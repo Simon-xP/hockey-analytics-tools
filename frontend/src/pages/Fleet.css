@@ -1,0 +1,297 @@
+/* ==========================================================================
+   Fleet overview: one card per league
+   ========================================================================== */
+
+.fleet-page {
+  padding: 0 0 80px;
+  max-width: 1440px;
+}
+
+.fleet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+}
+
+.fleet-header h1 {
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.fleet-header h1 .agent-mock-tag {
+  -webkit-text-fill-color: var(--warning);
+}
+
+/* ---------- Summary strip ---------- */
+.fleet-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 30px;
+}
+
+.fleet-summary-cell {
+  background: linear-gradient(145deg, rgba(24, 24, 56, 0.7), rgba(18, 18, 42, 0.55));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fleet-summary-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.fleet-summary-value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.fleet-summary-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ---------- League cards ---------- */
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+  gap: 18px;
+}
+
+.fleet-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, rgba(24, 24, 56, 0.6), rgba(18, 18, 42, 0.45));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  overflow: hidden;
+}
+
+.fleet-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+.fleet-card-active::before {
+  background: linear-gradient(180deg, var(--highlight), transparent);
+  box-shadow: 0 0 14px rgba(34, 217, 127, 0.5);
+}
+
+.fleet-card-paused::before {
+  background: linear-gradient(180deg, var(--warning), transparent);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.4);
+}
+
+.fleet-card-stopped::before {
+  background: linear-gradient(180deg, var(--negative), transparent);
+  box-shadow: 0 0 14px rgba(248, 113, 113, 0.4);
+}
+
+.fleet-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+}
+
+.fleet-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.fleet-card-ident {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.fleet-league {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.fleet-team {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.fleet-card-score {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgba(11, 11, 26, 0.42);
+  border: 1px solid var(--border);
+}
+
+/* ---------- Planned move ---------- */
+.fleet-card-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 58px;
+}
+
+.fleet-plan-label {
+  font-size: 0.63rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+}
+
+.fleet-plan-move {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fleet-fire-day {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent-light);
+  background: rgba(124, 92, 252, 0.12);
+  border: 1px solid rgba(124, 92, 252, 0.3);
+  border-radius: 6px;
+  padding: 3px 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.fleet-move-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.84rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.move-add {
+  color: var(--highlight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-drop {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleet-move-gain {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--highlight);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 14px rgba(34, 217, 127, 0.35);
+}
+
+.fleet-plan-idle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.fleet-plan-halt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--warning);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.fleet-card-stopped .fleet-plan-halt {
+  color: var(--negative);
+}
+
+.fleet-plan-halt-note {
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+
+/* ---------- Card footer ---------- */
+.fleet-card-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.fleet-foot-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fleet-meta-item {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.fleet-meta-dim {
+  color: var(--text-muted);
+}
+
+@media (max-width: 1100px) {
+  .fleet-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .fleet-grid {
+    grid-template-columns: 1fr;
+  }
+}

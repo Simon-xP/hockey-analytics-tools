@@ -1,0 +1,336 @@
+.injuries-page h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+/* Controls */
+.inj-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 4px 0 14px;
+  flex-wrap: wrap;
+}
+
+.inj-fppg-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inj-fppg-control label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.inj-fppg-control input[type="range"] {
+  width: 110px;
+  accent-color: var(--accent-light);
+}
+
+.inj-fppg-display {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-light);
+  min-width: 28px;
+}
+
+.inj-apply-btn {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.inj-apply-btn.dirty {
+  background: var(--accent-light);
+  border-color: var(--accent-light);
+  color: #fff;
+}
+
+.inj-apply-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Sections */
+.inj-section {
+  margin-bottom: 16px;
+}
+
+.inj-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+  margin-bottom: 6px;
+}
+
+.inj-section-header:hover h2 {
+  color: var(--accent-light);
+}
+
+.inj-section-header h2 {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  transition: color 0.1s;
+}
+
+.inj-arrow {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.inj-arrow.open {
+  transform: rotate(90deg);
+}
+
+.inj-section-count {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.inj-section-sub {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ── Gantt chart ── */
+.gantt-chart {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header: spacer on left, date axis on right */
+.gantt-header {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px 6px;
+}
+
+.gantt-header-spacer {
+  width: 240px;
+  flex-shrink: 0;
+}
+
+.gantt-header-axis {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Date axis labels */
+.gantt-axis {
+  position: relative;
+  height: 16px;
+}
+
+.gantt-axis-label {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.gantt-axis-label:first-child {
+  transform: translateX(0);
+}
+
+.gantt-axis-today {
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+/* Rows */
+.gantt-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.gantt-row:last-child {
+  border-bottom: none;
+}
+
+.gantt-row-click {
+  cursor: pointer;
+}
+
+.gantt-row-click:hover {
+  background: var(--surface-hover);
+}
+
+/* Player info (left side) */
+.gantt-player {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gantt-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.gantt-avatar-logo {
+  padding: 4px;
+}
+
+.gantt-avatar-empty {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  flex-shrink: 0;
+}
+
+.gantt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gantt-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.gantt-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gantt-fppg {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--accent-light);
+  flex-shrink: 0;
+}
+
+.gantt-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gantt-team {
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.gantt-sev {
+  font-size: 0.48rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.gantt-bp {
+  font-size: 0.56rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Timeline area (right side) */
+.gantt-timeline {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  position: relative;
+  background: var(--surface-hover);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Vertical grid lines */
+.gantt-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.gantt-gridline-today {
+  width: 2px;
+  background: var(--accent-light);
+  opacity: 0.5;
+}
+
+/* Bar inside the timeline */
+.gantt-cell {
+  position: absolute;
+  inset: 0;
+}
+
+.gantt-fill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+
+.gantt-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  padding-left: 6px;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.gantt-no-eta {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  opacity: 0.5;
+  white-space: nowrap;
+}
