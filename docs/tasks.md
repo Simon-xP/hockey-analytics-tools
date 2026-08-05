@@ -65,7 +65,7 @@ See `docs/autonomous-agent.md` for the full design.
 ## Phase 1: Transaction Evaluator (IN PROGRESS, April 2026)
 
 Core decision engine — can this pickup improve my team?
-Module: `src/tools/transactions/`. Design notes in `docs/autonomous-agent.md`.
+Module: `src/optimize/`. Design notes in `docs/autonomous-agent.md`.
 
 ### Done
 - [x] Data models (`PlayerValue`, `TransactionCandidate`, `WeekPlan`, `ReplacementLevel`, `AggressionLevel`)

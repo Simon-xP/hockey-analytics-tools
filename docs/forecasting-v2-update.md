@@ -34,9 +34,9 @@ Public API is unchanged **except** you must now pass an `eb_5v5`
 predictor to `forecast_player`:
 
 ```python
-from src.tools.forecasting.v2.forecast import load_models, forecast_player
-from src.tools.forecasting.v2.toi_model import TOIPredictor
-from src.tools.forecasting.v2.empirical_bayes import EmpiricalBayesPredictor
+from src.predict.forecasting.forecast import load_models, forecast_player
+from src.predict.forecasting.toi_model import TOIPredictor
+from src.predict.forecasting.empirical_bayes import EmpiricalBayesPredictor
 
 models = load_models()
 toi = TOIPredictor()
@@ -55,7 +55,7 @@ proj = forecast_player(
 ```
 
 The transaction evaluator's `_default_forecast_fn` already wraps this —
-no changes needed in `src/tools/transactions/`.
+no changes needed in `src/optimize/`.
 
 ## Data leakage
 

@@ -151,7 +151,7 @@ Details to be determined based on further research.
 ## File Structure
 
 ```
-src/tools/schedule/
+src/optimize/
 ├── __init__.py
 ├── optimizer.py      # Slot availability algorithm
 ├── projections.py    # Fantasy point predictions (future)
