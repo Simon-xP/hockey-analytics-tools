@@ -62,5 +62,5 @@ data/*.txt
 data/backtest*.md
 data/sim_results.json
 
-# Trained models
-models/
+# Trained models (leading slash: must not match src/core/models etc.)
+/models/
