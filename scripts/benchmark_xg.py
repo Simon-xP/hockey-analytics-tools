@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, log_loss, brier_score_loss
 
-from src.tools.xg.model import XGModel, load_shot_data, _classify_strength
+from src.analytics.xg.model import XGModel, load_shot_data, _classify_strength
 
 MP_CSV_DIR = Path("data/moneypuck")
 

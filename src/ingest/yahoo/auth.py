@@ -23,8 +23,8 @@ TOKEN_PATH = PROJECT_ROOT / "config" / "yahoo_token.json"
 AUTH_URL = "https://api.login.yahoo.com/oauth2/request_auth"
 TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"
 
-# Read-only scope for fantasy sports (write requires separate approval from Yahoo)
-SCOPE = "fspt-r"
+# Read + write scope for fantasy sports
+SCOPE = "fspt-w"
 
 
 def _load_credentials() -> tuple[str, str]:

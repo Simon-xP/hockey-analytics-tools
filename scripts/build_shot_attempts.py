@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 from src.core.db import get_session, init_db
 from src.core.models import Game, ShotAttempt
-from src.tools.xg.features import build_shot_attempts_for_game
+from src.analytics.xg.features import build_shot_attempts_for_game
 
 
 def get_ingested_game_ids(session) -> set[int]:

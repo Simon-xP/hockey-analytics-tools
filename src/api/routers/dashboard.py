@@ -17,7 +17,7 @@ from sqlalchemy import text as sa_text
 
 from src.core.db import get_session
 from src.core.models import Game, Team, Player, GameIndividualStats, GameAdvancedStats
-from src.tools.fantasy.scoring import SKATER_WEIGHTS
+from src.core.scoring import SKATER_WEIGHTS
 
 router = APIRouter()
 
@@ -303,7 +303,7 @@ def optimal_adds(season: str = "20252026", min_gp: int = 20, limit: int = 50):
             HAVING COUNT(DISTINCT gas.game_id) >= :min_gp
         """), {"start": start_gid, "end": end_gid, "min_gp": min_gp}).fetchall()
 
-        from src.tools.forecasting.v2.projections import PP_GOAL_BONUS, PP_ASSIST_BONUS, SH_GOAL_BONUS, SH_ASSIST_BONUS
+        from src.predict.forecasting.projections import PP_GOAL_BONUS, PP_ASSIST_BONUS, SH_GOAL_BONUS, SH_ASSIST_BONUS
 
         results = []
         for r in rows:

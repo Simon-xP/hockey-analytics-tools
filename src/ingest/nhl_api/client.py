@@ -5,6 +5,26 @@ BASE_URL = "https://api-web.nhle.com/v1"
 STATS_URL = "https://api.nhle.com/stats/rest/en"
 REQUEST_DELAY = 0.5  # seconds between requests to avoid rate limiting
 
+# The NHL API does not agree with itself about team IDs across endpoints.
+# When the Utah franchise was renamed to the Mammoth for 2025-26, the
+# play-by-play `eventOwnerTeamId` and the shift chart `teamId` started
+# reporting 68, while the schedule, standings, and teams endpoints kept
+# reporting 59. Left alone, that splits one franchise into two, and every
+# join from event data back to `teams` or `games` silently drops those rows.
+#
+# Everything is normalised to the ID used by `teams` and `games` at the
+# ingest boundary, so nothing downstream ever sees the alias.
+TEAM_ID_ALIASES = {
+    68: 59,  # Utah Mammoth -> Utah (as the schedule endpoint reports it)
+}
+
+
+def canonical_team_id(team_id: int | None) -> int | None:
+    """Map an API-reported team ID onto the one `teams` uses."""
+    if team_id is None:
+        return None
+    return TEAM_ID_ALIASES.get(team_id, team_id)
+
 
 def get_standings() -> dict:
     """Fetch current standings (includes all teams)."""
@@ -108,8 +128,8 @@ def get_team_schedule(team_abbrev: str, season: str = "20252026") -> list[dict]:
         games.append({
             "game_id": g["id"],
             "game_date": g["gameDate"],
-            "home_team_id": g["homeTeam"]["id"],
-            "away_team_id": g["awayTeam"]["id"],
+            "home_team_id": canonical_team_id(g["homeTeam"]["id"]),
+            "away_team_id": canonical_team_id(g["awayTeam"]["id"]),
             "home_abbrev": g["homeTeam"]["abbrev"],
             "away_abbrev": g["awayTeam"]["abbrev"],
             "home_score": g["homeTeam"]["score"],
@@ -133,9 +153,6 @@ def get_game_play_by_play(game_id: int) -> list[dict]:
     response = httpx.get(f"{BASE_URL}/gamecenter/{game_id}/play-by-play")
     response.raise_for_status()
     data = response.json()
-
-    home_team_id = data.get("homeTeam", {}).get("id")
-    away_team_id = data.get("awayTeam", {}).get("id")
 
     events = []
     for play in data.get("plays", []):
@@ -184,11 +201,44 @@ def get_game_play_by_play(game_id: int) -> list[dict]:
             "shot_type": details.get("shotType"),
             "player_1_id": player_1_id,
             "player_2_id": player_2_id,
-            "team_id": details.get("eventOwnerTeamId"),
+            "team_id": canonical_team_id(details.get("eventOwnerTeamId")),
             "detail": details,
         })
 
     return events
+
+
+def get_player_landing(player_id: int) -> dict | None:
+    """Fetch a single player's profile by NHL ID.
+
+    Unlike the roster endpoints, this works for retired and traded players,
+    so it is how we fill in historical players who appear in event data but
+    never on a current roster.
+
+    Returns a dict with nhl_id, full_name, position, birth_date, and
+    team_abbrev (the player's last known team), or None if the ID is not
+    recognised.
+    """
+    time.sleep(REQUEST_DELAY)
+    response = httpx.get(f"{BASE_URL}/player/{player_id}/landing")
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    data = response.json()
+
+    first = (data.get("firstName") or {}).get("default", "")
+    last = (data.get("lastName") or {}).get("default", "")
+    full_name = f"{first} {last}".strip()
+    if not full_name:
+        return None
+
+    return {
+        "nhl_id": data.get("playerId", player_id),
+        "full_name": full_name,
+        "position": data.get("position"),
+        "birth_date": data.get("birthDate"),
+        "team_abbrev": data.get("currentTeamAbbrev"),
+    }
 
 
 def get_game_boxscore(game_id: int) -> dict:
@@ -232,7 +282,7 @@ def get_game_shifts(game_id: int) -> list[dict]:
             "start_time": s.get("startTime"),
             "end_time": s.get("endTime"),
             "duration": s.get("duration"),
-            "team_id": s.get("teamId"),
+            "team_id": canonical_team_id(s.get("teamId")),
         })
 
     if not shifts:

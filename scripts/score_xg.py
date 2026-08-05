@@ -20,7 +20,7 @@ import numpy as np
 from sqlalchemy import text
 
 from src.core.db import get_session
-from src.tools.xg.model import XGModel, load_shot_data, build_feature_matrix, _classify_strength
+from src.analytics.xg.model import XGModel, load_shot_data, build_feature_matrix, _classify_strength
 
 
 def score_shots(

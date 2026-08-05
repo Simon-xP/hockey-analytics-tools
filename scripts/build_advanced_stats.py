@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 from src.core.db import get_session, init_db
 from src.core.models import Game, GameAdvancedStats
-from src.tools.advanced_stats.correlate import compute_game_advanced_stats
+from src.analytics.advanced_stats.correlate import compute_game_advanced_stats
 
 
 def get_ingested_game_ids(session) -> set[int]:

@@ -18,7 +18,7 @@ Usage:
 
 import argparse
 
-from src.tools.xg.model import XGModel
+from src.analytics.xg.model import XGModel
 
 
 DEFAULT_TRAIN_SEASONS = [

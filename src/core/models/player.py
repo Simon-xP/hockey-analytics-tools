@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Date, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from src.core.models.base import Base
 
@@ -13,6 +13,7 @@ class Player(Base):
     position = Column(String(5))  # "C", "L", "R", "D", "G" (NHL codes)
     yahoo_player_id = Column(Integer)  # Yahoo's player ID
     yahoo_positions = Column(String(30))  # Yahoo positional eligibility: "C,LW"
+    birth_date = Column(Date)
 
     # Relationships
     team = relationship("Team", backref="players")

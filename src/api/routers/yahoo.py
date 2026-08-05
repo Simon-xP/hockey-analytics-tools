@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_
@@ -32,11 +33,15 @@ from src.ingest.yahoo.client import (
     get_free_agents,
     get_matchup,
     get_trending_players,
+    add_drop_player,
+    set_lineup,
+    move_to_ir,
+    activate_from_ir,
 )
-from src.tools.fantasy.scoring import SKATER_WEIGHTS
-from src.tools.schedule.models import RosterPlayer, RosterSlotSettings
-from src.tools.schedule.optimizer import assign_players_to_slots
-from src.api.stats_helpers import compute_fpts_per_gp
+from src.core.scoring import SKATER_WEIGHTS
+from src.optimize.models import RosterPlayer, RosterSlotSettings
+from src.optimize.slots import assign_players_to_slots
+from src.core.queries.stats_helpers import compute_fpts_per_gp
 
 router = APIRouter()
 
@@ -382,3 +387,106 @@ def yahoo_roster_week(league_key: str, season: str = "20242025"):
         "week_summary": week_summary,
         "roster": enriched_roster,
     }
+
+
+# --- Write operations ---
+
+
+@router.post("/add-player/{league_key}")
+def yahoo_add_player(
+    league_key: str,
+    add_player_key: str,
+    drop_player_key: str | None = None,
+):
+    """Add a free agent, optionally dropping a player."""
+    try:
+        team = get_my_team(league_key)
+        if not team:
+            raise HTTPException(status_code=404, detail="Could not find your team")
+        result = add_drop_player(
+            league_key=league_key,
+            team_key=team["team_key"],
+            add_player_key=add_player_key,
+            drop_player_key=drop_player_key,
+        )
+        return result
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/lineup/{league_key}")
+def yahoo_set_lineup(
+    league_key: str,
+    coverage_date: str,
+    moves: list[dict],
+):
+    """Set roster positions for a given date.
+
+    moves: list of {"player_key": "...", "position": "..."} dicts.
+    """
+    try:
+        team = get_my_team(league_key)
+        if not team:
+            raise HTTPException(status_code=404, detail="Could not find your team")
+        result = set_lineup(
+            team_key=team["team_key"],
+            moves=moves,
+            coverage_date=coverage_date,
+        )
+        return result
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/ir/{league_key}")
+def yahoo_move_to_ir(
+    league_key: str,
+    player_key: str,
+    ir_type: str = "IR",
+    coverage_date: str | None = None,
+):
+    """Place a player on IR or IR+."""
+    try:
+        team = get_my_team(league_key)
+        if not team:
+            raise HTTPException(status_code=404, detail="Could not find your team")
+        result = move_to_ir(
+            team_key=team["team_key"],
+            player_key=player_key,
+            ir_type=ir_type,
+            coverage_date=coverage_date,
+        )
+        return result
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/activate/{league_key}")
+def yahoo_activate_from_ir(
+    league_key: str,
+    player_key: str,
+    position: str,
+    coverage_date: str | None = None,
+):
+    """Activate a player from IR to an active roster slot."""
+    try:
+        team = get_my_team(league_key)
+        if not team:
+            raise HTTPException(status_code=404, detail="Could not find your team")
+        result = activate_from_ir(
+            team_key=team["team_key"],
+            player_key=player_key,
+            position=position,
+            coverage_date=coverage_date,
+        )
+        return result
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

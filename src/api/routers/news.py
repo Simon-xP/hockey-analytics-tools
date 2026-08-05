@@ -202,7 +202,7 @@ def all_injuries(team: str | None = None):
     Sorted by soonest_return ascending (coming back soonest first),
     with nulls (season/unknown) at the end.
     """
-    from src.api.stats_helpers import compute_fpts_per_gp
+    from src.core.queries.stats_helpers import compute_fpts_per_gp
 
     try:
         rows = current_injuries(team_abbrev=team)

@@ -7,7 +7,7 @@ from src.api.schemas import GoalieMatchupRankingsResponse, GoalieMatchupTeam
 
 from src.core.db import get_session
 from src.core.models import Game, Team
-from src.tools.fantasy.scoring import GOALIE_WEIGHTS
+from src.core.scoring import GOALIE_WEIGHTS
 
 router = APIRouter()
 

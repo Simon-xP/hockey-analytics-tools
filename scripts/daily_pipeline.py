@@ -4,6 +4,8 @@ Orchestrates the full data flow:
   1. Ingest play-by-play events and shifts for completed games
   2. Build feature-enriched shot attempts from new events
   3. Score new shots with the trained xG model
+  4. Build the per-goalie game log from those shots and shifts
+  5. Sync player valuations
 
 By default processes yesterday's games (NHL games typically finish by ~1am ET).
 Can also process a specific date or date range.
@@ -23,14 +25,13 @@ Usage:
 """
 
 import argparse
-import sys
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from src.core.db import init_db
-from scripts.ingest_game_events import get_game_ids_for_date_range, ingest_games
 from scripts.build_shot_attempts import process_games as build_shots
-from scripts.build_shot_attempts import get_ingested_game_ids
+from scripts.ingest_game_events import get_game_ids_for_date_range, ingest_games
+from src.core.db import init_db
 
 
 def run_pipeline(
@@ -65,7 +66,7 @@ def run_pipeline(
     summary = {}
 
     # Step 1: Ingest events and shifts
-    print(f"\n--- Step 1: Ingest events and shifts ---")
+    print("\n--- Step 1: Ingest events and shifts ---")
     game_ids = get_game_ids_for_date_range(start, end)
 
     if not game_ids:
@@ -85,7 +86,7 @@ def run_pipeline(
         print(f"  Errors: {ingest_result['errors']}")
 
     # Step 2: Build shot attempts
-    print(f"\n--- Step 2: Build shot attempts ---")
+    print("\n--- Step 2: Build shot attempts ---")
     shots_result = build_shots(game_ids)
     summary["shots"] = shots_result
     print(f"  Processed: {shots_result['games']} games, "
@@ -93,11 +94,11 @@ def run_pipeline(
 
     # Step 3: Score with xG model
     if score:
-        print(f"\n--- Step 3: Score with xG model ---")
+        print("\n--- Step 3: Score with xG model ---")
         model_path = Path("models/xg/xg_latest.pkl")
         if not model_path.exists():
             print("  No trained model found. Skipping scoring.")
-            print(f"  Train one with: python -m scripts.train_xg_model")
+            print("  Train one with: python -m scripts.train_xg_model")
             summary["scoring"] = {"skipped": True, "reason": "no model"}
         else:
             from scripts.score_xg import score_shots
@@ -113,14 +114,78 @@ def run_pipeline(
             summary["scoring"] = score_result
             print(f"  Scored: {score_result['scored']} shots")
     else:
-        print(f"\n--- Step 3: Skipped (--no-score) ---")
+        print("\n--- Step 3: Skipped (--no-score) ---")
         summary["scoring"] = {"skipped": True, "reason": "flag"}
+
+    # Step 4: Build goalie game log
+    # Runs after xG scoring so the log picks up scored shots in the same
+    # pass. Depends on shifts from step 1 to tell starts from relief.
+    print("\n--- Step 4: Build goalie game log ---")
+    from scripts.build_goalie_game_log import (  # noqa: I001
+        get_candidate_games,
+        process_games as build_goalie_log,
+    )
+    from src.core.db import get_session as _get_session
+
+    with _get_session() as sess:
+        candidates = [
+            g for g in get_candidate_games(sess, seasons=None)
+            if g["game_id"] in set(game_ids)
+        ]
+
+    if not candidates:
+        print("  No completed games with shot data.")
+        summary["goalie_log"] = {"games": 0}
+    else:
+        goalie_result = build_goalie_log(candidates, force=True)
+        summary["goalie_log"] = goalie_result
+        print(f"  Built: {goalie_result['games']} games, "
+              f"{goalie_result['rows']} goalie lines "
+              f"({goalie_result['starts']} starts)")
+        if goalie_result["no_shifts"]:
+            print(f"  Warning: {goalie_result['no_shifts']} games had no "
+                  f"detectable start (missing shift data)")
+
+    # Step 5: Sync player valuations
+    print("\n--- Step 5: Sync player valuations ---")
+    model_dir = Path("models/forecasting_v2")
+    if not model_dir.exists():
+        print("  No forecasting models found. Skipping valuation sync.")
+        print("  Train with: python -m scripts.train_forecasting")
+        summary["valuations"] = {"skipped": True, "reason": "no model"}
+    else:
+        from src.core.db import get_session
+        from src.optimize.sync import sync_nightly
+
+        league_key = os.environ.get("YAHOO_LEAGUE_KEY", "")
+        if not league_key:
+            print("  YAHOO_LEAGUE_KEY not set. Skipping valuation sync.")
+            summary["valuations"] = {"skipped": True, "reason": "no league key"}
+        else:
+            with get_session() as sess:
+                counts = sync_nightly(
+                    sess, league_key,
+                    from_date=end + timedelta(days=1),
+                    season=_season_for_date(end),
+                )
+
+            summary["valuations"] = counts
+            print(
+                f"  Synced: {counts['synced']} valuations "
+                f"({counts['roster']} roster, {counts['free_agents']} FA, "
+                f"{counts['trending']} trending)"
+            )
 
     print(f"\n{'='*60}")
     print("DONE")
     print(f"{'='*60}")
 
     return summary
+
+
+def _season_for_date(d: date) -> str:
+    start_year = d.year if d.month >= 8 else d.year - 1
+    return f"{start_year}{start_year + 1}"
 
 
 if __name__ == "__main__":

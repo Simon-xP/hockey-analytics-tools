@@ -6,43 +6,61 @@ This project uses a **layered architecture** with a **src layout**. The goal is 
 
 ## Architecture Pattern
 
+Everything this project does falls into one of three stages: **get the data in**, **predict what happens next**, **decide what to do about it**.
+The directory layout mirrors those stages directly, with a foundation layer underneath and a delivery layer on top.
+
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                     FRONTEND                             │
+│                     FRONTEND                            │
 │         Vite + React, TanStack Query (v5)               │
 │                   frontend/                             │
 └─────────────────────────┬───────────────────────────────┘
                           │ HTTPS
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                       API                                │
-│     FastAPI, Pydantic response models, httpx             │
+┌─────────────────────────▼───────────────────────────────┐
+│                       API                               │
+│     FastAPI, Pydantic response models, httpx            │
 │                   src/api/                              │
 └─────────────────────────┬───────────────────────────────┘
-                          │ uses
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                      TOOLS                               │
-│         (schedule optimizer, projections, etc.)          │
-│                  src/tools/                              │
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│                     OPTIMIZE                            │
+│   Decide. Lineup slots, player value, drop ranking,     │
+│   week optimization, matchup state.                     │
+│                  src/optimize/                          │
 └─────────────────────────┬───────────────────────────────┘
-                          │ uses
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                      INGEST                              │
-│     (NHL API, Natural Stat Trick, Daily Faceoff)        │
-│                  src/ingest/                             │
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│                      PREDICT                            │
+│   Forecast. Situation-split per-60 + TOI models,        │
+│   upside and opportunity signals.                       │
+│                  src/predict/                           │
 └─────────────────────────┬───────────────────────────────┘
-                          │ uses
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                       CORE                               │
-│        (models, resolver, database connection)           │
-│                   src/core/                              │
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│                     ANALYTICS                           │
+│   Derive. Advanced stats from shifts/events, xG, RAPM.  │
+│                 src/analytics/                          │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│                      INGEST                             │
+│   Get data in. NHL API, NST, Yahoo, news, schedule.     │
+│                  src/ingest/                            │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│                       CORE                              │
+│   Models, resolver, DB, scoring weights, as_of queries. │
+│                   src/core/                             │
 └─────────────────────────────────────────────────────────┘
+
+              src/backtest/  — replays historical decisions
+              against src/optimize strategies. Sits beside
+              the stack, not inside it.
 ```
 
-**Key principle:** Each layer only depends on layers below it. Frontend calls the API over HTTPS. API uses tools and ingest. Tools use ingest and core. Ingest uses core. Core depends on nothing else in the project.
+**Key principle:** each layer only depends on the layers below it.
+A module that needs to reach *upward* is a sign it is in the wrong place.
 
 ## Directory Structure
 
@@ -62,11 +80,14 @@ hockey-analytics-tools/
 ├── notebooks/       # Jupyter notebooks for exploration
 ├── scripts/         # Entry points, cron jobs, one-off scripts
 ├── src/             # Main Python package
-│   ├── api/         # FastAPI app, routers, Pydantic schemas
-│   ├── core/        # Foundation layer
-│   ├── ingest/      # Data ingestion layer (uses httpx for HTTP)
-│   └── tools/       # Application layer
-└── tests/           # Test files
+│   ├── core/        # Foundation: models, resolver, db, scoring, queries
+│   ├── ingest/      # Get data in — one subdirectory per source
+│   ├── analytics/   # Derive metrics from raw data (advanced_stats, xg, rapm)
+│   ├── predict/     # Forecast player performance (forecasting, signals)
+│   ├── optimize/    # Decide what to do (slots, value, week, matchup)
+│   ├── backtest/    # Replay historical decisions
+│   └── api/         # FastAPI app, routers, Pydantic schemas
+└── tests/           # Test files, mirroring src/
 ```
 
 ## Layer Details
@@ -97,19 +118,37 @@ Data ingestion from external sources. Each source gets its own subdirectory:
 
 Keeping them isolated makes it easy to modify one without affecting others.
 
-### Tools Layer (`src/tools/`)
+### Analytics Layer (`src/analytics/`)
 
-User-facing functionality that consumes data:
+Derived metrics computed from raw ingested data. Not predictions, not decisions — these turn events and shifts into the enriched stats everything above reads.
 
-- **schedule/** - Schedule optimization for fantasy hockey (slot availability, bipartite matching)
-- **forecasting/** - Legacy v1 XGBoost forecast model (NST data)
-- **forecasting/v2/** - Situation-split forecast model (5v5/PP/PK/Other). Uses `GameAdvancedStats` from our NHL API pipeline. Predicts per-60 rates + TOI per situation, combines into per-game fantasy points with PP/SH bonuses.
-- **xg/** - Expected goals model (shot-level XGBoost from NHL API play-by-play)
 - **advanced_stats/** - Shift-event correlation engine that builds `GameAdvancedStats` from raw events
-- **fantasy/** - League scoring weights and FPTS projection
-- **transactions/** - Transaction evaluator (Phase 1 of PuckAgent). Consumes the v2 forecast as a black box and makes add/drop decisions with slot-aware projections, drop ranking, goalie streaming, and a greedy weekly optimizer.
+- **xg/** - Expected goals model (shot-level XGBoost from NHL API play-by-play)
+- **rapm/** - Regularized adjusted plus-minus player ratings
 
-**Why separate from ingest?** Ingest is about getting data in. Tools are about using data. Different concerns, different change patterns.
+**Why not in ingest?** Ingest writes what a source gave us. Analytics writes what we computed. When a model changes we re-derive; we do not re-scrape.
+
+### Predict Layer (`src/predict/`)
+
+What will a player do next.
+
+- **forecasting/** - Situation-split model (5v5/PP/PK/Other). Uses `GameAdvancedStats` from the NHL API pipeline. Predicts per-60 rates + TOI per situation, combines into per-game fantasy points with PP/SH bonuses.
+- **signals/** - `upside` (individual talent ceiling) and `opportunity` (situational favorability), both scored on `[-1.0, 1.0]`.
+
+Knows nothing about rosters, leagues, or transactions. A forecast for a player is the same number whether or not you own them.
+
+### Optimize Layer (`src/optimize/`)
+
+What to do about it. The only layer that knows fantasy teams exist.
+
+- **models/** - Dataclasses grouped by concern: `roster`, `value`, `plan`, `matchup`
+- **slots.py** - Bipartite matching slot assignment: who makes the active lineup today
+- **value.py**, **replacement.py**, **drops.py**, **goalies.py** - What a player is worth, and what he is worth relative to the pool
+- **injuries.py** - Injury reports → expected games missed
+- **week/** - `optimize_week()` for *any* team: `heavy` for my own (pickup-level search, aggression-aware), `light` for opponents (roster projection + best add path, cheaper)
+- **matchup/** - Two projections → win probability → aggression level, which feeds back into `heavy`
+
+**Why one entry point for any team?** Knowing how many points an opponent can put up matters as much as knowing your own ceiling. Modelling them with a different algorithm makes the two numbers incomparable.
 
 ## Key Concepts
 
@@ -129,10 +168,18 @@ This happens in `src/core/resolver/`. The `player_aliases` table stores known na
 
 Database URLs and API keys live in `config/settings.py`, loaded from environment variables with sensible defaults. This keeps secrets out of code.
 
-### Scripts vs Tools
+### Scripts vs Modules
 
 - **scripts/** - One-off or scheduled entry points (run from command line)
-- **src/tools/** - Importable modules with functions (used by scripts or notebooks)
+- **src/** - Importable modules with functions (used by scripts, the API, or notebooks)
+
+A script should be a thin argument parser over a module function. If logic lives only in `scripts/`, the API and the backtest cannot reach it.
+
+### Temporal Gating (`src/core/queries/`)
+
+Every historical read takes an `as_of` date and uses a strict `Game.date < as_of` cutoff, so a decision made on day D cannot see day D's own games.
+
+Live code passes today; backtests pass the simulated decision date. Same code path either way — that shared path is the only reliable defense against time leakage, which is why these queries live in `core` rather than in `backtest`.
 
 ### API Layer (`src/api/`)
 
@@ -140,7 +187,7 @@ FastAPI backend serving the frontend over HTTPS (required for Yahoo OAuth).
 
 - **routers/** — Route handlers organized by domain: `dashboard.py`, `players.py`, `yahoo.py`, `news.py`, `goalie_matchups.py`
 - **schemas.py** — Pydantic response models for all endpoints. Every route has a `response_model=` for typed validation and auto-generated OpenAPI docs at `/docs`
-- **stats_helpers.py** — Shared FPTS computation used by multiple routers
+- FPTS computation is shared with the rest of the stack via `src/core/queries/stats_helpers.py`
 
 All HTTP calls within route handlers use `httpx.AsyncClient` to avoid blocking the event loop.
 
@@ -165,11 +212,18 @@ Alembic manages schema migrations. Configured in `alembic/env.py` to read `DATAB
 3. Use `resolve_player()` to map names to NHL IDs before storing
 4. Add a script in `scripts/` to run it
 
-### Adding a New Tool
+### Adding New Functionality
 
-1. Create `src/tools/new_tool/`
-2. Import from `src.core` for models and resolver
-3. Import from `src.ingest` if you need to trigger data fetches
+Pick the layer by asking what the code *does*, not what feature it serves:
+
+| It... | Goes in |
+|-------|---------|
+| fetches from an external source | `src/ingest/` |
+| computes a metric from data we already have | `src/analytics/` |
+| estimates something that has not happened yet | `src/predict/` |
+| chooses between options for a fantasy team | `src/optimize/` |
+
+Then import only from layers below. If you find yourself importing upward, the code is in the wrong layer.
 
 ## References
 

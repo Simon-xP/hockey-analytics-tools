@@ -161,14 +161,14 @@ def get_forecast(nhl_id: int, game_date: str | None = None):
     by situation (5v5, PP, PK, other) and combined total.
     """
     from pathlib import Path
-    from src.tools.forecasting.v2.model import SituationModel
-    from src.tools.forecasting.v2.toi_model import TOIPredictor
-    from src.tools.forecasting.v2.empirical_bayes import EmpiricalBayesPredictor
-    from src.tools.forecasting.v2.features import (
+    from src.predict.forecasting.model import SituationModel
+    from src.predict.forecasting.toi_model import TOIPredictor
+    from src.predict.forecasting.empirical_bayes import EmpiricalBayesPredictor
+    from src.predict.forecasting.features import (
         extract_all_features, load_player_game_stats, extract_rolling_features,
     )
-    from src.tools.forecasting.v2.projections import project_per_game
-    from src.tools.forecasting.v2.constants import SITUATION_CONFIGS
+    from src.predict.forecasting.projections import project_per_game
+    from src.predict.forecasting.constants import SITUATION_CONFIGS
 
     target_date = date.fromisoformat(game_date) if game_date else date.today()
 
