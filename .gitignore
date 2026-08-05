@@ -20,6 +20,8 @@ build/
 # Environment and secrets
 .env
 .env.*
+config/yahoo_token.json
+config/*.pem
 
 # Testing and coverage
 .pytest_cache/
@@ -53,7 +55,12 @@ data/moneypuck/
 *.parquet
 *.db
 *.sqlite
-config/yahoo_token.json
+
+# Generated analysis output
+data/*.csv
+data/*.txt
+data/backtest*.md
+data/sim_results.json
 
 # Trained models
-models/xg/
+models/
